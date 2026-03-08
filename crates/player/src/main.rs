@@ -72,7 +72,7 @@ async fn main() {
                     }
                     Err(e) => {
                         #[cfg(target_family = "wasm")]
-                        macroquad::logging::error(&e);
+                        macroquad::logging::error!("{}", &e);
                         state = AppState::Error(e);
                     }
                 }
