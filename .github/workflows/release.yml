@@ -4,6 +4,9 @@ on:
   push:
     tags:
       - 'v*'
+  push:
+    branches:
+      - master
 
 permissions:
   contents: write
@@ -35,13 +38,9 @@ jobs:
       - name: Build and Package Linux (x86_64) AppImage
         run: |
           cargo build --release -p player
-          
-          # Setup AppDir
           mkdir -p AppDir/usr/bin/assets
           cp target/release/player AppDir/usr/bin/
           cp -r assets/* AppDir/usr/bin/assets/
-          
-          # Create Desktop file
           cat <<EOF > AppDir/player.desktop
           [Desktop Entry]
           Name=Avatar Player
@@ -51,8 +50,6 @@ jobs:
           Categories=Utility;
           EOF
           touch AppDir/player.svg
-          
-          # Download and run linuxdeploy
           wget -c -nv "https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage"
           chmod +x linuxdeploy-x86_64.AppImage
           ./linuxdeploy-x86_64.AppImage --appdir AppDir --output appimage
@@ -62,33 +59,72 @@ jobs:
         run: |
           cargo install cross --git https://github.com/cross-rs/cross
           cross build --release --target aarch64-unknown-linux-gnu -p player
-          
           mkdir -p rpi-dist/assets
           cp target/aarch64-unknown-linux-gnu/release/player rpi-dist/
           cp -r assets/* rpi-dist/assets/
           tar -czvf avatar-player-rpi-aarch64.tar.gz -C rpi-dist .
 
-      - name: Build and Package Web (Wasm) Zip
+      - name: Build and Package Web (Wasm)
         run: |
           cargo build --release --target wasm32-unknown-unknown -p player
-          
           mkdir -p web-dist/assets
           cp target/wasm32-unknown-unknown/release/player.wasm web-dist/
           cp -r assets/* web-dist/assets/
           
+          # Create a polished, simple index.html for GitHub Pages
           cat <<EOF > web-dist/index.html
           <!DOCTYPE html>
           <html>
           <head>
               <meta charset="utf-8">
-              <title>Avatar Player (Web)</title>
+              <title>Faces: Audio-Driven Avatar Engine</title>
               <style>
-                  body { margin: 0; background: black; overflow: hidden; }
-                  canvas { width: 100vw; height: 100vh; }
+                  body { 
+                      margin: 0; 
+                      background: #0f0f12; 
+                      color: #e0e0e0;
+                      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+                      display: flex;
+                      flex-direction: column;
+                      align-items: center;
+                      overflow: hidden;
+                      height: 100vh;
+                  }
+                  #container {
+                      position: relative;
+                      width: 100%;
+                      flex-grow: 1;
+                      display: flex;
+                      justify-content: center;
+                      align-items: center;
+                  }
+                  canvas { 
+                      max-width: 100%; 
+                      max-height: 100%; 
+                      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+                      border-radius: 8px;
+                  }
+                  #info {
+                      padding: 20px;
+                      text-align: center;
+                      background: rgba(20, 20, 25, 0.8);
+                      width: 100%;
+                      border-top: 1px solid #333;
+                  }
+                  h1 { margin: 0 0 10px 0; font-size: 1.5rem; color: #fff; }
+                  p { margin: 5px 0; font-size: 0.9rem; opacity: 0.8; }
+                  .controls { font-size: 0.8rem; color: #888; margin-top: 10px; }
               </style>
           </head>
           <body>
-              <canvas id="glcanvas"></canvas>
+              <div id="container">
+                  <canvas id="glcanvas"></canvas>
+              </div>
+              <div id="info">
+                  <h1>Faces Engine</h1>
+                  <p>A lightweight, 2.5D triangulated avatar engine driven by ML landmarks and phoneme synthesis.</p>
+                  <div class="controls">Press <strong>H</strong> for "Hello" &bull; Press <strong>Space</strong> for Random Clip</div>
+              </div>
               <script src="https://not-fl3.github.io/miniquad-samples/mq_js_bundle.js"></script>
               <script>load("player.wasm");</script>
           </body>
@@ -97,7 +133,15 @@ jobs:
           
           zip -r avatar-player-web.zip web-dist
 
+      - name: Deploy to GitHub Pages
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v'))
+        uses: JamesIves/github-pages-deploy-action@v4
+        with:
+          folder: web-dist
+          branch: gh-pages
+
       - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
           files: |
