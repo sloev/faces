@@ -113,7 +113,7 @@ async fn main() {
                 #[cfg(target_family = "wasm")] 
                 {
                     static mut LOGGED: bool = false;
-                    unsafe { if !LOGGED { macroquad::logging::info("RENDER_LOOP_STARTED"); LOGGED = true; } }
+                    unsafe { if !LOGGED { macroquad::logging::info!("RENDER_LOOP_STARTED"); LOGGED = true; } }
                 }
                 clear_background(Color::new(0.1, 0.1, 0.12, 1.0));
                 
