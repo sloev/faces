@@ -4,44 +4,16 @@ use shared::AvatarData;
 
 fn window_conf() -> Conf {
     Conf {
-        window_title: "Faces Engine".to_owned(),
+        window_title: "Faces Engine - Debug Mode".to_owned(),
         window_width: 800,
         window_height: 800,
         ..Default::default()
     }
 }
 
-const FRAGMENT_SHADER: &str = r#"#version 100
-    precision lowp float;
-    varying vec2 uv;
-    varying vec4 color;
-    uniform sampler2D Texture;
-    void main() {
-        vec4 res = texture2D(Texture, uv) * color;
-        res.rgb *= (1.0 - (uv.y * 0.2));
-        gl_FragColor = res;
-    }
-"#;
-
-const VERTEX_SHADER: &str = r#"#version 100
-    attribute vec3 position;
-    attribute vec2 texcoord;
-    attribute vec4 color0;
-    varying vec2 uv;
-    varying vec4 color;
-    uniform mat4 Model;
-    uniform mat4 Projection;
-    void main() {
-        gl_Position = Projection * Model * vec4(position, 1.0);
-        uv = texcoord;
-        color = color0;
-    }
-"#;
-
 struct Resources {
     player: AnimationPlayer,
     texture: Texture2D,
-    pipeline: Material,
 }
 
 enum AppState {
@@ -72,7 +44,7 @@ async fn main() {
 
         match state {
             AppState::Waiting => {
-                if frame_count > 20 { // 20 frame stability delay
+                if frame_count > 20 {
                     state = AppState::Loading;
                 }
             }
@@ -85,15 +57,10 @@ async fn main() {
                     let texture = load_texture("assets/face.jpg").await
                         .map_err(|e| format!("Texture load failed: {:?}", e))?;
                     texture.set_filter(FilterMode::Linear);
-                    let pipeline = load_material(
-                        ShaderSource::Glsl { vertex: VERTEX_SHADER, fragment: FRAGMENT_SHADER },
-                        MaterialParams { ..Default::default() }
-                    ).map_err(|e| format!("Shader error: {:?}", e))?;
                     
                     Ok(Resources {
                         player: AnimationPlayer::new(data),
                         texture,
-                        pipeline,
                     })
                 }.await;
 
@@ -112,17 +79,29 @@ async fn main() {
             }
             AppState::Error(ref e) => {
                 clear_background(RED);
-                #[cfg(not(target_family = "wasm"))]
                 draw_text(&format!("Error: {}", e), 20.0, 20.0, 20.0, WHITE);
             }
             AppState::Running(ref mut res) => {
-                clear_background(Color::new(0.1, 0.1, 0.12, 1.0));
+                clear_background(DARKGRAY);
                 
                 let dt = get_frame_time();
                 res.player.update(dt);
 
                 let vertices = res.player.get_current_pose();
                 if !vertices.is_empty() {
+                    // COORDINATE AUDIT LOG (First frame only)
+                    static mut LOGGED_COORDS: bool = false;
+                    unsafe {
+                        if !LOGGED_COORDS {
+                            let v = vertices[0];
+                            // Scale matches the map() below: v.x * 600 + 100
+                            let sx = v.x * 600.0 + 100.0;
+                            let sy = v.y * 600.0 + 100.0;
+                            macroquad::logging::info!(&format!("DEBUG_COORDS: Raw({:.2}, {:.2}) -> Screen({:.2}, {:.2})", v.x, v.y, sx, sy));
+                            LOGGED_COORDS = true;
+                        }
+                    }
+
                     let mq_vertices: Vec<macroquad::models::Vertex> = vertices
                         .iter()
                         .enumerate()
@@ -137,14 +116,33 @@ async fn main() {
                         })
                         .collect();
 
-                    gl_use_material(&res.pipeline);
+                    // USE DEFAULT MATERIAL (Removed custom shaders)
                     draw_mesh(&Mesh {
                         vertices: mq_vertices,
                         indices: res.player.data.mesh_indices.iter().map(|&i| i as u16).collect(),
                         texture: Some(res.texture.clone()),
                     });
-                    gl_use_default_material();
+
+                    // WIREFRAME DEBUG MODE
+                    let indices = &res.player.data.mesh_indices;
+                    for i in (0..indices.len()).step_by(3) {
+                        if i + 2 < indices.len() {
+                            let v1 = vertices[indices[i] as usize];
+                            let v2 = vertices[indices[i+1] as usize];
+                            let v3 = vertices[indices[i+2] as usize];
+                            let p1 = vec2(v1.x * 600.0 + 100.0, v1.y * 600.0 + 100.0);
+                            let p2 = vec2(v2.x * 600.0 + 100.0, v2.y * 600.0 + 100.0);
+                            let p3 = vec2(v3.x * 600.0 + 100.0, v3.y * 600.0 + 100.0);
+                            draw_line(p1.x, p1.y, p2.x, p2.y, 1.0, RED);
+                            draw_line(p2.x, p2.y, p3.x, p3.y, 1.0, RED);
+                            draw_line(p3.x, p3.y, p1.x, p1.y, 1.0, RED);
+                        }
+                    }
                 }
+
+                draw_rectangle(10.0, 10.0, 300.0, 100.0, Color::new(0.0, 0.0, 0.0, 0.5));
+                draw_text(&format!("State: {:?}", res.player.state), 20.0, 35.0, 25.0, WHITE);
+                draw_text("[H] Hello  [Space] Random", 20.0, 85.0, 20.0, LIGHTGRAY);
 
                 if is_key_pressed(KeyCode::H) {
                     res.player.transition_to("talk_hello_world".to_string());

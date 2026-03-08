@@ -136,6 +136,13 @@ jobs:
           npm install puppeteer node-static
           node smoke_test.js
 
+      - name: Upload Visual Debug Artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-screenshot
+          path: ci_screenshot.png
+
       - name: Generate Version Tag
         id: version
         run: echo "tag=v0.4.${{ github.run_number }}" >> $GITHUB_OUTPUT
