@@ -103,12 +103,11 @@ jobs:
           cargo build --release --target wasm32-unknown-unknown -p player
           mkdir -p web-dist/assets
           cp target/wasm32-unknown-unknown/release/player.wasm web-dist/
-          # Copy the entire assets directory into web-dist
-          cp -r assets/* web-dist/assets/
+          # Ensure assets are copied correctly into web-dist/assets
+          cp assets/timeline.json web-dist/assets/
+          cp assets/face.jpg web-dist/assets/
           
-          # Debug paths
-          find web-dist
-          
+          # Create index.html
           cat <<EOF > web-dist/index.html
           <!DOCTYPE html>
           <html>
@@ -135,6 +134,8 @@ jobs:
       - name: Web Runtime Smoke Test
         run: |
           npm install puppeteer node-static
+          # Debug: list web-dist contents
+          find web-dist
           node smoke_test.js
 
       - name: Upload Visual Debug Artifact
@@ -146,7 +147,7 @@ jobs:
 
       - name: Generate Version Tag
         id: version
-        run: echo "tag=v0.4.${{ github.run_number }}" >> $GITHUB_OUTPUT
+        run: echo "tag=v0.5.${{ github.run_number }}" >> $GITHUB_OUTPUT
 
       - name: Deploy to GitHub Pages
         uses: JamesIves/github-pages-deploy-action@v4

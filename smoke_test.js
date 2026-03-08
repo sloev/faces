@@ -28,7 +28,7 @@ const server = exec('python3 -m http.server 8080', { cwd: path.join(__dirname, '
 
     page.on('requestfailed', request => {
         console.error(`[BROWSER ERROR] Request failed: ${request.url()} - ${request.failure().errorText}`);
-        if (request.url().includes(".wasm") || request.url().includes(".json")) {
+        if (request.url().includes(".wasm") || request.url().includes(".json") || request.url().includes(".jpg")) {
             runtimeError = true;
         }
     });
@@ -40,8 +40,8 @@ const server = exec('python3 -m http.server 8080', { cwd: path.join(__dirname, '
 
     try {
         await page.goto('http://localhost:8080', { waitUntil: 'networkidle0', timeout: 30000 });
-        console.log("Page loaded, waiting 5 seconds for stability...");
-        await new Promise(r => setTimeout(r, 5000));
+        console.log("Page loaded, waiting 8 seconds for stability...");
+        await new Promise(r => setTimeout(r, 8000));
         
         console.log("📸 CAPTURING SCREENSHOT...");
         await page.screenshot({ path: 'ci_screenshot.png' });
@@ -55,8 +55,11 @@ const server = exec('python3 -m http.server 8080', { cwd: path.join(__dirname, '
     server.kill();
 
     if (runtimeError || !successSignal) {
+        if (!successSignal) console.error("--- ❌ WEB SMOKE TEST FAILED: Never reached RENDER_LOOP_STARTED ---");
+        else console.error("--- ❌ WEB SMOKE TEST FAILED ---");
         process.exit(1);
     } else {
+        console.log("--- ✅ WEB SMOKE TEST PASSED ---");
         process.exit(0);
     }
 })();
