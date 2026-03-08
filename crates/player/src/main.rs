@@ -37,14 +37,14 @@ async fn main() {
         let json_data = load_string("assets/timeline.json").await
             .map_err(|e| {
                 let err = format!("Load failed: {:?}", e);
-                #[cfg(target_family = "wasm")] macroquad::logging::error!(&err);
+                #[cfg(target_family = "wasm")] macroquad::logging::error!("{}", &err);
                 err
             })?;
         
         let data = AvatarData::from_json(&json_data)
             .map_err(|e| {
                 let err = format!("Parse failed: {:?}", e);
-                #[cfg(target_family = "wasm")] macroquad::logging::error!(&err);
+                #[cfg(target_family = "wasm")] macroquad::logging::error!("{}", &err);
                 err
             })?;
         
