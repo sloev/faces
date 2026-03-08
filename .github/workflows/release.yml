@@ -103,7 +103,9 @@ jobs:
           cargo build --release --target wasm32-unknown-unknown -p player
           mkdir -p web-dist/assets
           cp target/wasm32-unknown-unknown/release/player.wasm web-dist/
+          # Redundant copies to solve all path resolution issues
           cp -r assets/* web-dist/assets/
+          cp -r assets/* web-dist/
           
           # Debug paths
           find web-dist

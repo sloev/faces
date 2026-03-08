@@ -25,7 +25,7 @@ enum AppState {
 
 #[macroquad::main(window_conf)]
 async fn main() {
-    let mut state = AppState::Waiting;
+    let mut state = AppState::Loading;
     let mut frame_count = 0;
 
     #[cfg(not(target_family = "wasm"))]
@@ -44,32 +44,26 @@ async fn main() {
 
         match state {
             AppState::Waiting => {
-                if frame_count > 60 { // Wait 1 second (at 60fps)
+                if frame_count > 30 {
                     state = AppState::Loading;
                 }
             }
             AppState::Loading => {
                 let res = async {
-                    // Try different paths for Wasm flexibility
-                    let paths = ["assets/timeline.json", "timeline.json"];
-                    let mut json_data = None;
-                    for p in paths {
-                        if let Ok(data) = load_string(p).await {
-                            json_data = Some(data);
-                            break;
-                        }
-                    }
+                    // Try multiple paths for robustness
+                    let json_data = if let Ok(d) = load_string("assets/timeline.json").await {
+                        Ok(d)
+                    } else {
+                        load_string("timeline.json").await
+                    }.map_err(|_| "timeline.json missing")?;
                     
-                    let json_data = json_data.ok_or("timeline.json not found in assets/ or root")?;
-                    let data = AvatarData::from_json(&json_data).map_err(|e| format!("Parse error: {:?}", e))?;
+                    let data = AvatarData::from_json(&json_data).map_err(|e| format!("JSON error: {:?}", e))?;
                     
                     let texture = if let Ok(t) = load_texture("assets/face.jpg").await {
-                        Some(t)
+                        Ok(t)
                     } else {
-                        load_texture("face.jpg").await.ok()
-                    };
-                    
-                    let texture = texture.ok_or("face.jpg not found")?;
+                        load_texture("face.jpg").await
+                    }.map_err(|_| "face.jpg missing")?;
                     
                     texture.set_filter(FilterMode::Linear);
                     
@@ -82,18 +76,17 @@ async fn main() {
                 match res {
                     Ok(r) => {
                         state = AppState::Running(r);
-                        #[cfg(target_family = "wasm")]
-                        macroquad::logging::info!("RENDER_LOOP_STARTED");
+                        println!("RENDER_LOOP_STARTED");
                     }
                     Err(e) => {
-                        #[cfg(target_family = "wasm")]
-                        macroquad::logging::error(&e);
+                        eprintln!("Error: {}", e);
                         state = AppState::Error(e);
                     }
                 }
             }
-            AppState::Error(_) => {
+            AppState::Error(ref e) => {
                 clear_background(RED);
+                // No draw_text here to prevent early panic
             }
             AppState::Running(ref mut res) => {
                 clear_background(DARKGRAY);
