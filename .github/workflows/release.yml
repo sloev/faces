@@ -40,13 +40,10 @@ jobs:
       - name: Setup Multi-Platform Tools
         run: |
           mkdir -p bin
-          # linuxdeploy
           wget -c -nv "https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage" -O bin/linuxdeploy
           wget -c -nv "https://github.com/linuxdeploy/linuxdeploy-plugin-appimage/releases/download/continuous/linuxdeploy-plugin-appimage-x86_64.AppImage" -O bin/linuxdeploy-plugin-appimage
-          # cross
           wget -c -nv "https://github.com/cross-rs/cross/releases/download/v0.2.5/cross-x86_64-unknown-linux-musl.tar.gz"
           tar -xvf cross-x86_64-unknown-linux-musl.tar.gz -C bin/
-          
           chmod +x bin/linuxdeploy* bin/cross
           echo "$PWD/bin" >> $GITHUB_PATH
 
@@ -56,7 +53,6 @@ jobs:
           mkdir -p AppDir/usr/bin/assets
           cp target/release/player AppDir/usr/bin/
           cp -r assets/* AppDir/usr/bin/assets/
-          
           mkdir -p AppDir/usr/share/applications
           cat <<EOF > AppDir/usr/share/applications/player.desktop
           [Desktop Entry]
@@ -66,10 +62,8 @@ jobs:
           Type=Application
           Categories=Utility;
           EOF
-          
           mkdir -p AppDir/usr/share/icons/hicolor/scalable/apps
           touch AppDir/usr/share/icons/hicolor/scalable/apps/player.svg
-          
           export APPIMAGE_EXTRACT_AND_RUN=1
           linuxdeploy --appdir AppDir --output appimage
           mv Avatar_Player-x86_64.AppImage avatar-player-linux-x86_64.AppImage
@@ -88,7 +82,6 @@ jobs:
           mkdir -p web-dist/assets
           cp target/wasm32-unknown-unknown/release/player.wasm web-dist/
           cp -r assets/* web-dist/assets/
-          
           cat <<EOF > web-dist/index.html
           <!DOCTYPE html>
           <html>
@@ -110,8 +103,16 @@ jobs:
           </body>
           </html>
           EOF
-          
           zip -r avatar-player-web.zip web-dist
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: platform-bundles
+          path: |
+            avatar-player-linux-x86_64.AppImage
+            avatar-player-rpi-aarch64.tar.gz
+            avatar-player-web.zip
 
       - name: Deploy to GitHub Pages
         if: github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v')
