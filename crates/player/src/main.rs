@@ -11,9 +11,37 @@ fn window_conf() -> Conf {
     }
 }
 
+const FRAGMENT_SHADER: &str = r#"#version 100
+    precision lowp float;
+    varying vec2 uv;
+    varying vec4 color;
+    uniform sampler2D Texture;
+    void main() {
+        vec4 res = texture2D(Texture, uv) * color;
+        res.rgb *= (1.0 - (uv.y * 0.2));
+        gl_FragColor = res;
+    }
+"#;
+
+const VERTEX_SHADER: &str = r#"#version 100
+    attribute vec3 position;
+    attribute vec2 texcoord;
+    attribute vec4 color0;
+    varying vec2 uv;
+    varying vec4 color;
+    uniform mat4 Model;
+    uniform mat4 Projection;
+    void main() {
+        gl_Position = Projection * Model * vec4(position, 1.0);
+        uv = texcoord;
+        color = color0;
+    }
+"#;
+
 struct Resources {
     player: AnimationPlayer,
     texture: Texture2D,
+    pipeline: Material,
 }
 
 enum AppState {
@@ -25,7 +53,7 @@ enum AppState {
 
 #[macroquad::main(window_conf)]
 async fn main() {
-    let mut state = AppState::Loading;
+    let mut state = AppState::Waiting;
     let mut frame_count = 0;
 
     #[cfg(not(target_family = "wasm"))]
@@ -44,13 +72,12 @@ async fn main() {
 
         match state {
             AppState::Waiting => {
-                if frame_count > 30 {
+                if frame_count > 60 { // 1 second delay
                     state = AppState::Loading;
                 }
             }
             AppState::Loading => {
                 let res = async {
-                    // Try multiple paths for robustness
                     let json_data = if let Ok(d) = load_string("assets/timeline.json").await {
                         Ok(d)
                     } else {
@@ -66,10 +93,16 @@ async fn main() {
                     }.map_err(|_| "face.jpg missing")?;
                     
                     texture.set_filter(FilterMode::Linear);
+
+                    let pipeline = load_material(
+                        ShaderSource::Glsl { vertex: VERTEX_SHADER, fragment: FRAGMENT_SHADER },
+                        MaterialParams { ..Default::default() }
+                    ).map_err(|e| format!("Shader error: {:?}", e))?;
                     
                     Ok(Resources {
                         player: AnimationPlayer::new(data),
                         texture,
+                        pipeline,
                     })
                 }.await;
 
@@ -84,12 +117,11 @@ async fn main() {
                     }
                 }
             }
-            AppState::Error(ref e) => {
+            AppState::Error(_) => {
                 clear_background(RED);
-                // No draw_text here to prevent early panic
             }
             AppState::Running(ref mut res) => {
-                clear_background(DARKGRAY);
+                clear_background(Color::new(0.1, 0.1, 0.12, 1.0));
                 res.player.update(get_frame_time());
 
                 let vertices = res.player.get_current_pose();
@@ -103,16 +135,29 @@ async fn main() {
                                 position: vec3(v.x * 600.0 + 100.0, v.y * 600.0 + 100.0, 0.0),
                                 uv: vec2(uv.x, uv.y),
                                 color: WHITE,
+                                normal: vec4(0.0, 0.0, 1.0, 0.0),
                             }
-
                         })
                         .collect();
 
+                    gl_use_material(&res.pipeline);
                     draw_mesh(&Mesh {
                         vertices: mq_vertices,
                         indices: res.player.data.mesh_indices.iter().map(|&i| i as u16).collect(),
                         texture: Some(res.texture.clone()),
                     });
+                    gl_use_default_material();
+                }
+
+                if is_key_pressed(KeyCode::H) {
+                    res.player.transition_to("talk_hello_world".to_string());
+                }
+                if is_key_pressed(KeyCode::Space) {
+                    let clips: Vec<String> = res.player.data.clips.keys().cloned().collect();
+                    if !clips.is_empty() {
+                        let idx = macroquad::rand::gen_range(0, clips.len());
+                        res.player.transition_to(clips[idx].clone());
+                    }
                 }
             }
         }
