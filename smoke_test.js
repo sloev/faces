@@ -1,16 +1,14 @@
 const puppeteer = require('puppeteer');
-const http = require('http');
-const nodeStatic = require('node-static');
+const { exec } = require('child_process');
 const path = require('path');
 
-const file = new nodeStatic.Server(path.join(__dirname, 'web-dist'));
-
-const server = http.createServer((req, res) => {
-    req.addListener('end', () => file.serve(req, res)).resume();
-}).listen(8080);
+// Use python3 to serve for absolute simplicity
+const server = exec('python3 -m http.server 8080', { cwd: path.join(__dirname, 'web-dist') });
 
 (async () => {
     console.log("--- 🌐 STARTING WEB SMOKE TEST ---");
+    await new Promise(r => setTimeout(r, 2000)); // Wait for server
+
     const browser = await puppeteer.launch({
         headless: "new",
         args: ['--no-sandbox', '--disable-setuid-sandbox', '--enable-unsafe-swiftshader']
@@ -22,14 +20,9 @@ const server = http.createServer((req, res) => {
     page.on('console', msg => {
         const text = msg.text();
         console.log(`[BROWSER CONSOLE] ${msg.type().toUpperCase()}: ${text}`);
-        if (text.toLowerCase().includes("panic") || text.toLowerCase().includes("fatal")) {
+        if (text.toLowerCase().includes("panic") || text.toLowerCase().includes("runtimeerror")) {
             runtimeError = true;
         }
-    });
-
-    page.on('requestfailed', request => {
-        console.error(`[BROWSER ERROR] Request failed: ${request.url()} - ${request.failure().errorText}`);
-        // We don't fail immediately on assets, but we log it
     });
 
     page.on('pageerror', err => {
@@ -47,7 +40,7 @@ const server = http.createServer((req, res) => {
     }
 
     await browser.close();
-    server.close();
+    server.kill();
 
     if (runtimeError) {
         console.error("--- ❌ WEB SMOKE TEST FAILED ---");

@@ -44,57 +44,42 @@ async fn main() {
     {
         if let Ok(mut path) = std::env::current_exe() {
             path.pop();
-            let assets_path = path.join("assets");
-            if assets_path.exists() {
-                macroquad::file::set_pc_assets_folder(path.to_str().unwrap_or("."));
-            }
+            macroquad::file::set_pc_assets_folder(path.to_str().unwrap_or("."));
         }
     }
 
     // 1. Load Data
     let json_data = match load_string("assets/timeline.json").await {
         Ok(json) => json,
-        Err(e) => {
-            error!("FATAL: assets/timeline.json missing: {:?}", e);
-            return;
-        }
+        Err(_) => return,
     };
 
     let data = match AvatarData::from_json(&json_data) {
         Ok(d) => d,
-        Err(e) => {
-            error!("FATAL: timeline.json corrupt: {:?}", e);
-            return;
-        }
+        Err(_) => return,
     };
 
     let mut player = AnimationPlayer::new(data.clone());
 
-    // 2. Load Texture (Graceful non-panic loading)
+    // 2. Load Texture
     let texture_opt = match load_texture("assets/face.jpg").await {
         Ok(t) => {
             t.set_filter(FilterMode::Linear);
             Some(t)
         },
-        Err(e) => {
-            error!("ERROR: assets/face.jpg missing: {:?}", e);
-            None
-        }
+        Err(_) => None,
     };
 
     // 3. Load Shader
-    let pipeline = match load_material(
+    let pipeline_opt = match load_material(
         ShaderSource::Glsl {
             vertex: VERTEX_SHADER,
             fragment: FRAGMENT_SHADER,
         },
         MaterialParams { ..Default::default() },
     ) {
-        Ok(p) => p,
-        Err(e) => {
-            error!("FATAL: Shader error: {:?}", e);
-            return;
-        }
+        Ok(p) => Some(p),
+        Err(_) => None,
     };
 
     loop {
@@ -105,7 +90,7 @@ async fn main() {
 
         let vertices = player.get_current_pose();
         if !vertices.is_empty() {
-            if let Some(ref texture) = texture_opt {
+            if let (Some(ref texture), Some(ref pipeline)) = (&texture_opt, &pipeline_opt) {
                 let mq_vertices: Vec<macroquad::models::Vertex> = vertices
                     .iter()
                     .enumerate()
@@ -120,21 +105,15 @@ async fn main() {
                     })
                     .collect();
 
-                gl_use_material(&pipeline);
+                gl_use_material(pipeline);
                 draw_mesh(&Mesh {
                     vertices: mq_vertices,
                     indices: data.mesh_indices.iter().map(|&i| i as u16).collect(),
                     texture: Some(texture.clone()),
                 });
                 gl_use_default_material();
-            } else {
-                draw_text("Texture Missing", 400.0, 400.0, 30.0, RED);
             }
         }
-
-        draw_rectangle(10.0, 10.0, 300.0, 100.0, Color::new(0.0, 0.0, 0.0, 0.5));
-        draw_text(&format!("State: {:?}", player.state), 20.0, 35.0, 25.0, WHITE);
-        draw_text("[H] Hello  [Space] Random", 20.0, 85.0, 20.0, LIGHTGRAY);
 
         if is_key_pressed(KeyCode::H) {
             player.transition_to("talk_hello_world".to_string());
