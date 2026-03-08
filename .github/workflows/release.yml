@@ -30,19 +30,13 @@ jobs:
       - name: Prepare Assets & Generate Data
         run: |
           mkdir -p assets
-          # Download MediaPipe Face Mesh ONNX (using raw=true parameter for GitHub)
+          # Download MediaPipe Face Mesh ONNX
           curl -L -o assets/face_mesh.onnx "https://github.com/k-okada/mediapipe-onnx-models/raw/main/face_landmark.onnx"
           # Download a public domain face image
           curl -L -o assets/face.jpg "https://upload.wikimedia.org/wikipedia/commons/a/a5/Front_view_of_a_face.jpg"
           
           # Debug: check file sizes
           ls -lh assets/
-          
-          # If download failed or file is too small, use mock landmarks to allow CI to proceed
-          if [ ! -f assets/face_mesh.onnx ] || [ $(stat -c%s "assets/face_mesh.onnx") -lt 100000 ]; then
-            echo "Warning: face_mesh.onnx missing or too small. CI will proceed with mock generator."
-            # We don't exit 1 here to allow the packaging steps to be tested
-          fi
           
           cargo run --release -p generator
 
@@ -52,6 +46,8 @@ jobs:
           mkdir -p AppDir/usr/bin/assets
           cp target/release/player AppDir/usr/bin/
           cp -r assets/* AppDir/usr/bin/assets/
+          
+          # Create Desktop file
           cat <<EOF > AppDir/player.desktop
           [Desktop Entry]
           Name=Avatar Player
@@ -61,9 +57,14 @@ jobs:
           Categories=Utility;
           EOF
           touch AppDir/player.svg
+          
+          # Download linuxdeploy and appimage plugin
           wget -c -nv "https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage"
-          chmod +x linuxdeploy-x86_64.AppImage
-          ./linuxdeploy-x86_64.AppImage --appdir AppDir --output appimage --appimage-extract-and-run
+          wget -c -nv "https://github.com/linuxdeploy/linuxdeploy-plugin-appimage/releases/download/continuous/linuxdeploy-plugin-appimage-x86_64.AppImage"
+          chmod +x linuxdeploy*.AppImage
+          
+          export APPIMAGE_EXTRACT_AND_RUN=1
+          ./linuxdeploy-x86_64.AppImage --appdir AppDir --plugin appimage --output appimage
           mv Avatar_Player-*-x86_64.AppImage avatar-player-linux-x86_64.AppImage
 
       - name: Build and Package Raspberry Pi (aarch64) Tarball
