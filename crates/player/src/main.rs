@@ -70,15 +70,15 @@ async fn main() {
 
     let mut player = AnimationPlayer::new(data.clone());
 
-    // 2. Load Texture
-    let texture = match load_texture("assets/face.jpg").await {
+    // 2. Load Texture (Graceful non-panic loading)
+    let texture_opt = match load_texture("assets/face.jpg").await {
         Ok(t) => {
             t.set_filter(FilterMode::Linear);
-            t
+            Some(t)
         },
         Err(e) => {
             error!("ERROR: assets/face.jpg missing: {:?}", e);
-            Texture2D::from_rgba8(1, 1, &[255, 255, 255, 255])
+            None
         }
     };
 
@@ -105,27 +105,31 @@ async fn main() {
 
         let vertices = player.get_current_pose();
         if !vertices.is_empty() {
-            let mq_vertices: Vec<macroquad::models::Vertex> = vertices
-                .iter()
-                .enumerate()
-                .map(|(i, v)| {
-                    let uv = data.base_uvs.get(i).cloned().unwrap_or(shared::Vertex { x: 0.0, y: 0.0 });
-                    macroquad::models::Vertex {
-                        position: vec3(v.x * 600.0 + 100.0, v.y * 600.0 + 100.0, 0.0),
-                        uv: vec2(uv.x, uv.y),
-                        color: [255, 255, 255, 255],
-                        normal: vec4(0.0, 0.0, 1.0, 0.0),
-                    }
-                })
-                .collect();
+            if let Some(ref texture) = texture_opt {
+                let mq_vertices: Vec<macroquad::models::Vertex> = vertices
+                    .iter()
+                    .enumerate()
+                    .map(|(i, v)| {
+                        let uv = data.base_uvs.get(i).cloned().unwrap_or(shared::Vertex { x: 0.0, y: 0.0 });
+                        macroquad::models::Vertex {
+                            position: vec3(v.x * 600.0 + 100.0, v.y * 600.0 + 100.0, 0.0),
+                            uv: vec2(uv.x, uv.y),
+                            color: [255, 255, 255, 255],
+                            normal: vec4(0.0, 0.0, 1.0, 0.0),
+                        }
+                    })
+                    .collect();
 
-            gl_use_material(&pipeline);
-            draw_mesh(&Mesh {
-                vertices: mq_vertices,
-                indices: data.mesh_indices.iter().map(|&i| i as u16).collect(),
-                texture: Some(texture.clone()),
-            });
-            gl_use_default_material();
+                gl_use_material(&pipeline);
+                draw_mesh(&Mesh {
+                    vertices: mq_vertices,
+                    indices: data.mesh_indices.iter().map(|&i| i as u16).collect(),
+                    texture: Some(texture.clone()),
+                });
+                gl_use_default_material();
+            } else {
+                draw_text("Texture Missing", 400.0, 400.0, 30.0, RED);
+            }
         }
 
         draw_rectangle(10.0, 10.0, 300.0, 100.0, Color::new(0.0, 0.0, 0.0, 0.5));
