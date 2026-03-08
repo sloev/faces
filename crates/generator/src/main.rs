@@ -66,10 +66,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     std::fs::write(output_path, data.to_json()?)?;
     
     // Ensure face.jpg exists in assets for the player
+    let mut face_saved = false;
     if std::path::Path::new(image_path).exists() {
-        std::fs::copy(image_path, "assets/face.jpg")?;
-    } else {
-        // Create a dummy face if missing
+        if let Ok(metadata) = std::fs::metadata(image_path) {
+            if metadata.len() > 0 {
+                std::fs::copy(image_path, "assets/face.jpg")?;
+                face_saved = true;
+            }
+        }
+    }
+    
+    if !face_saved {
+        println!("Warning: face.jpg input missing or empty. Generating dummy face.");
         let img = DynamicImage::new_rgb8(192, 192);
         img.save("assets/face.jpg")?;
     }

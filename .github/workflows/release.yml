@@ -32,15 +32,15 @@ jobs:
           mkdir -p assets
           # Download a more reliable MediaPipe model (this one is ~2.7MB)
           curl -L -o assets/face_mesh.onnx "https://github.com/PINTO0309/PINTO_model_zoo/raw/main/032_FaceMesh/01_float32/model_float32.onnx"
-          # Download a real face image from a stable CDN
-          curl -L -o assets/face.jpg "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a5/Front_view_of_a_face.jpg/192px-Front_view_of_a_face.jpg"
+          # Download a real face image from a stable CDN (direct link to a JPG)
+          curl -L -o assets/face.jpg "https://upload.wikimedia.org/wikipedia/commons/8/8d/Chisato_Minami_Face.jpg"
           
           # Validation: ensure model is > 1MB and image is > 1KB
           if [ $(stat -c%s "assets/face_mesh.onnx") -lt 1000000 ]; then
             echo "Warning: face_mesh.onnx download might have failed or is incorrect size."
           fi
-          if [ $(stat -c%s "assets/face.jpg") -lt 1000 ]; then
-            echo "Warning: face.jpg download might have failed or is incorrect size."
+          if [ ! -f assets/face.jpg ] || [ $(stat -c%s "assets/face.jpg") -lt 1000 ]; then
+            echo "Warning: face.jpg download failed. Generating dummy in next step."
           fi
           
           cargo run --release -p generator
