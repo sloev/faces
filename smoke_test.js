@@ -22,10 +22,13 @@ const server = exec('python3 -m http.server 8080', { cwd: path.join(__dirname, '
     page.on('console', msg => {
         const text = msg.text();
         console.log(`[BROWSER CONSOLE] ${msg.type().toUpperCase()}: ${text}`);
-        if (text.includes("RENDER_LOOP_STARTED")) {
-            successSignal = true;
-        }
-        if (text.toLowerCase().includes("panic") || text.toLowerCase().includes("runtimeerror")) {
+        if (text.includes("RENDER_LOOP_STARTED")) successSignal = true;
+        if (text.toLowerCase().includes("panic") || text.toLowerCase().includes("runtimeerror")) runtimeError = true;
+    });
+
+    page.on('requestfailed', request => {
+        console.error(`[BROWSER ERROR] Request failed: ${request.url()} - ${request.failure().errorText}`);
+        if (request.url().includes(".wasm") || request.url().includes(".json")) {
             runtimeError = true;
         }
     });
@@ -42,7 +45,6 @@ const server = exec('python3 -m http.server 8080', { cwd: path.join(__dirname, '
         
         console.log("📸 CAPTURING SCREENSHOT...");
         await page.screenshot({ path: 'ci_screenshot.png' });
-        console.log("Screenshot saved to ci_screenshot.png");
         
     } catch (e) {
         console.error("Navigation failed:", e);
@@ -53,11 +55,8 @@ const server = exec('python3 -m http.server 8080', { cwd: path.join(__dirname, '
     server.kill();
 
     if (runtimeError || !successSignal) {
-        if (!successSignal) console.error("--- ❌ WEB SMOKE TEST FAILED: Never reached RENDER_LOOP_STARTED ---");
-        else console.error("--- ❌ WEB SMOKE TEST FAILED ---");
         process.exit(1);
     } else {
-        console.log("--- ✅ WEB SMOKE TEST PASSED ---");
         process.exit(0);
     }
 })();
