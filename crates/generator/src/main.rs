@@ -64,6 +64,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     std::fs::create_dir_all("assets")?;
     std::fs::write(output_path, data.to_json()?)?;
+    
+    // Ensure face.jpg exists in assets for the player
+    if std::path::Path::new(image_path).exists() {
+        std::fs::copy(image_path, "assets/face.jpg")?;
+    } else {
+        // Create a dummy face if missing
+        let img = DynamicImage::new_rgb8(192, 192);
+        img.save("assets/face.jpg")?;
+    }
+
     println!("Successfully exported timelines to '{}'", output_path);
 
     Ok(())

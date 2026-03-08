@@ -1,4 +1,4 @@
-use shared::{AvatarData, Vertex, Clip, Frame};
+use shared::{AvatarData, Vertex, Clip};
 
 /// The various states the animation player can be in.
 #[derive(Debug, Clone, PartialEq)]
