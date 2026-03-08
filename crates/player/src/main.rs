@@ -72,26 +72,27 @@ async fn main() {
 
         match state {
             AppState::Waiting => {
-                // Wait for GL context to stabilize
-                if frame_count > 100 {
+                // Extended delay for Wasm stabilization (3 seconds)
+                if frame_count > 180 {
                     state = AppState::Loading;
                 }
             }
             AppState::Loading => {
                 let res = async {
-                    // 1. Load Timeline
-                    let json_data = load_string("assets/timeline.json").await
-                        .map_err(|e| format!("Timeline load failed: {:?}", e))?;
+                    // Safe asset probing
+                    let timeline_path = "assets/timeline.json";
+                    let face_path = "assets/face.jpg";
+
+                    let json_data = load_string(timeline_path).await
+                        .map_err(|e| format!("{} load failed: {:?}", timeline_path, e))?;
                     
                     let data = AvatarData::from_json(&json_data)
-                        .map_err(|e| format!("Timeline parse failed: {:?}", e))?;
+                        .map_err(|e| format!("JSON parse failed: {:?}", e))?;
                     
-                    // 2. Load Texture
-                    let texture = load_texture("assets/face.jpg").await
-                        .map_err(|e| format!("Texture load failed: {:?}", e))?;
+                    let texture = load_texture(face_path).await
+                        .map_err(|e| format!("{} load failed: {:?}", face_path, e))?;
                     texture.set_filter(FilterMode::Linear);
 
-                    // 3. Load Shader
                     let pipeline = load_material(
                         ShaderSource::Glsl { vertex: VERTEX_SHADER, fragment: FRAGMENT_SHADER },
                         MaterialParams { ..Default::default() }
@@ -147,17 +148,6 @@ async fn main() {
                         texture: Some(res.texture.clone()),
                     });
                     gl_use_default_material();
-                }
-
-                if is_key_pressed(KeyCode::H) {
-                    res.player.transition_to("talk_hello_world".to_string());
-                }
-                if is_key_pressed(KeyCode::Space) {
-                    let clips: Vec<String> = res.player.data.clips.keys().cloned().collect();
-                    if !clips.is_empty() {
-                        let idx = macroquad::rand::gen_range(0, clips.len());
-                        res.player.transition_to(clips[idx].clone());
-                    }
                 }
             }
         }
