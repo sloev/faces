@@ -4,7 +4,7 @@ use shared::AvatarData;
 
 fn window_conf() -> Conf {
     Conf {
-        window_title: "Avatar Player - 2.5D Engine".to_owned(),
+        window_title: "Faces Engine".to_owned(),
         window_width: 800,
         window_height: 800,
         ..Default::default()
@@ -18,7 +18,6 @@ const FRAGMENT_SHADER: &str = r#"#version 100
     uniform sampler2D Texture;
     void main() {
         vec4 res = texture2D(Texture, uv) * color;
-        // Simple subtle depth effect: darker at the bottom
         res.rgb *= (1.0 - (uv.y * 0.2));
         gl_FragColor = res;
     }
@@ -41,46 +40,70 @@ const VERTEX_SHADER: &str = r#"#version 100
 
 #[macroquad::main(window_conf)]
 async fn main() {
+    // 1. Robust Path Resolution for Desktop
     #[cfg(not(target_family = "wasm"))]
     {
         if let Ok(mut path) = std::env::current_exe() {
-            path.pop();
-            macroquad::file::set_pc_assets_folder(path.to_str().unwrap());
+            path.pop(); // Remove binary name
+            // For AppImage, we need to look for assets relative to the executable
+            let assets_path = path.join("assets");
+            if assets_path.exists() {
+                macroquad::file::set_pc_assets_folder(path.to_str().unwrap_or("."));
+            } else {
+                eprintln!("[ERROR] Assets directory not found at: {:?}", assets_path);
+            }
         }
     }
 
+    // 2. Graceful Asset Loading
     let json_data = match load_string("assets/timeline.json").await {
         Ok(json) => json,
-        Err(_) => {
-            println!("Error: assets/timeline.json not found.");
+        Err(e) => {
+            let msg = format!("[FATAL] Failed to load assets/timeline.json: {:?}", e);
+            #[cfg(target_family = "wasm")] macroquad::logging::error!("{}", msg);
+            #[cfg(not(target_family = "wasm"))] eprintln!("{}", msg);
             return;
         }
     };
 
-    let data = AvatarData::from_json(&json_data).expect("Invalid JSON");
+    let data = match AvatarData::from_json(&json_data) {
+        Ok(d) => d,
+        Err(e) => {
+            let msg = format!("[FATAL] Failed to parse timeline.json: {:?}", e);
+            #[cfg(target_family = "wasm")] macroquad::logging::error!("{}", msg);
+            #[cfg(not(target_family = "wasm"))] eprintln!("{}", msg);
+            return;
+        }
+    };
+
     let mut player = AnimationPlayer::new(data.clone());
 
-    let texture = match load_texture("assets/face.png").await {
+    let texture = match load_texture("assets/face.jpg").await {
         Ok(t) => t,
-        Err(_) => {
-            // Fallback for face.jpg if face.png doesn't exist
-            match load_texture("assets/face.jpg").await {
-                Ok(t) => t,
-                Err(_) => Texture2D::from_rgba8(2, 2, &[200, 200, 200, 255, 220, 220, 220, 255, 180, 180, 180, 255, 200, 200, 200, 255])
-            }
+        Err(e) => {
+            let msg = format!("[ERROR] Failed to load assets/face.jpg: {:?}. Using fallback.", e);
+            #[cfg(target_family = "wasm")] macroquad::logging::error!("{}", msg);
+            #[cfg(not(target_family = "wasm"))] eprintln!("{}", msg);
+            Texture2D::from_rgba8(2, 2, &[200, 200, 200, 255, 255, 255, 255, 255, 255, 255, 255, 255, 200, 200, 200, 255])
         }
     };
     texture.set_filter(FilterMode::Linear);
 
-    let pipeline = load_material(
+    let pipeline = match load_material(
         ShaderSource::Glsl {
             vertex: VERTEX_SHADER,
             fragment: FRAGMENT_SHADER,
         },
-        MaterialParams {
-            ..Default::default()
-        },
-    ).expect("Failed to load shader");
+        MaterialParams { ..Default::default() },
+    ) {
+        Ok(p) => p,
+        Err(e) => {
+            let msg = format!("[FATAL] Shader compilation failed: {:?}", e);
+            #[cfg(target_family = "wasm")] macroquad::logging::error!("{}", msg);
+            #[cfg(not(target_family = "wasm"))] eprintln!("{}", msg);
+            return;
+        }
+    };
 
     loop {
         clear_background(Color::new(0.1, 0.1, 0.12, 1.0));
@@ -89,11 +112,16 @@ async fn main() {
         player.update(dt);
 
         let vertices = player.get_current_pose();
+        if vertices.is_empty() {
+            next_frame().await;
+            continue;
+        }
+
         let mq_vertices: Vec<macroquad::models::Vertex> = vertices
             .iter()
             .enumerate()
             .map(|(i, v)| {
-                let uv = data.base_uvs[i];
+                let uv = data.base_uvs.get(i).cloned().unwrap_or(shared::Vertex { x: 0.0, y: 0.0 });
                 macroquad::models::Vertex {
                     position: vec3(v.x * 600.0 + 100.0, v.y * 600.0 + 100.0, 0.0),
                     uv: vec2(uv.x, uv.y),
@@ -113,17 +141,18 @@ async fn main() {
 
         draw_rectangle(10.0, 10.0, 300.0, 100.0, Color::new(0.0, 0.0, 0.0, 0.5));
         draw_text(&format!("State: {:?}", player.state), 20.0, 35.0, 25.0, WHITE);
-        draw_text("Controls:", 20.0, 60.0, 20.0, GRAY);
-        draw_text("[H] Say 'Hello'  [Space] Random Clip", 20.0, 85.0, 20.0, LIGHTGRAY);
+        draw_text("[H] Say 'Hello'  [Space] Random", 20.0, 85.0, 20.0, LIGHTGRAY);
 
         if is_key_pressed(KeyCode::H) {
-            player.transition_to("talk_hello".to_string());
+            player.transition_to("talk_hello_world".to_string());
         }
         
         if is_key_pressed(KeyCode::Space) {
             let clips: Vec<String> = data.clips.keys().cloned().collect();
-            let idx = macroquad::rand::gen_range(0, clips.len());
-            player.transition_to(clips[idx].clone());
+            if !clips.is_empty() {
+                let idx = macroquad::rand::gen_range(0, clips.len());
+                player.transition_to(clips[idx].clone());
+            }
         }
 
         next_frame().await

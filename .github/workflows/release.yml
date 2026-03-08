@@ -2,9 +2,9 @@ name: Release Pipeline
 
 on:
   push:
-    branches:
-      - master
-      - main
+    branches: [ master, main ]
+  release:
+    types: [ created ]
 
 permissions:
   contents: write
@@ -34,17 +34,14 @@ jobs:
       - name: Install System Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libasound2-dev libudev-dev pkg-config libx11-dev libxi-dev libgl1-mesa-dev wget fuse zip
+          sudo apt-get install -y libasound2-dev libudev-dev pkg-config libx11-dev libxi-dev libgl1-mesa-dev wget fuse zip xvfb
 
       - name: Prepare Assets & Generate Data
         run: |
           mkdir -p assets
           if [ "${{ steps.cache-assets.outputs.cache-hit }}" != "true" ]; then
-            echo "Cache miss: downloading assets..."
             curl -L -o assets/face_mesh.onnx "https://github.com/PINTO0309/PINTO_model_zoo/raw/main/032_FaceMesh/01_float32/model_float32.onnx"
             curl -L -o assets/face.jpg "https://upload.wikimedia.org/wikipedia/commons/8/8d/Chisato_Minami_Face.jpg"
-          else
-            echo "Cache hit: skipping download."
           fi
           cargo run --release -p generator
 
@@ -82,6 +79,17 @@ jobs:
           linuxdeploy --appdir AppDir --output appimage
           mv Avatar_Player-x86_64.AppImage avatar-player-linux-x86_64.AppImage
 
+      - name: Desktop Runtime Smoke Test
+        run: |
+          export APPIMAGE_EXTRACT_AND_RUN=1
+          timeout 5 xvfb-run --auto-servernum ./avatar-player-linux-x86_64.AppImage 2> crash_log.txt || true
+          cat crash_log.txt
+          if grep -qiE "panic|error|fatal|no such file" crash_log.txt; then
+            echo "--- ❌ DESKTOP SMOKE TEST FAILED ---"
+            exit 1
+          fi
+          echo "--- ✅ DESKTOP SMOKE TEST PASSED ---"
+
       - name: Build and Package Raspberry Pi (aarch64) Tarball
         run: |
           cross build --release --target aarch64-unknown-linux-gnu -p player
@@ -101,7 +109,7 @@ jobs:
           <html>
           <head>
               <meta charset="utf-8">
-              <title>Faces: Audio-Driven Avatar Engine</title>
+              <title>Faces Engine</title>
               <style>
                   body { margin: 0; background: #0f0f12; color: #e0e0e0; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; height: 100vh; overflow: hidden; }
                   #container { width: 100%; flex-grow: 1; display: flex; justify-content: center; align-items: center; }
@@ -119,9 +127,14 @@ jobs:
           EOF
           zip -r avatar-player-web.zip web-dist
 
+      - name: Web Runtime Smoke Test
+        run: |
+          npm install puppeteer node-static
+          node smoke_test.js
+
       - name: Generate Version Tag
         id: version
-        run: echo "tag=v0.3.${{ github.run_number }}" >> $GITHUB_OUTPUT
+        run: echo "tag=v0.4.${{ github.run_number }}" >> $GITHUB_OUTPUT
 
       - name: Deploy to GitHub Pages
         uses: JamesIves/github-pages-deploy-action@v4
