@@ -60,6 +60,7 @@ async fn main() {
     {
         if let Ok(mut path) = std::env::current_exe() {
             path.pop();
+            // Try both local and assets/ for Desktop flexibility
             if path.join("assets").exists() {
                 macroquad::file::set_pc_assets_folder(path.to_str().unwrap_or("."));
             }
@@ -78,22 +79,21 @@ async fn main() {
             }
             AppState::Loading => {
                 let res = async {
-                    // Use load_file to avoid early texture panics
-                    let json_bytes = load_file("assets/timeline.json").await
-                        .map_err(|e| format!("timeline.json load_file failed: {:?}", e))?;
-                    println!("LOADED_JSON_BYTES: {}", json_bytes.len());
+                    // FLAT PATHS for Wasm/CI consistency
+                    let json_data = if let Ok(d) = load_string("timeline.json").await {
+                        Ok(d)
+                    } else {
+                        load_string("assets/timeline.json").await
+                    }.map_err(|_| "timeline.json missing (checked root and assets/)")?;
                     
-                    let json_data = String::from_utf8(json_bytes)
-                        .map_err(|e| format!("UTF8 error: {:?}", e))?;
+                    let data = AvatarData::from_json(&json_data).map_err(|e| format!("JSON error: {:?}", e))?;
                     
-                    let data = AvatarData::from_json(&json_data)
-                        .map_err(|e| format!("JSON parse error: {:?}", e))?;
+                    let texture = if let Ok(t) = load_texture("face.jpg").await {
+                        Ok(t)
+                    } else {
+                        load_texture("assets/face.jpg").await
+                    }.map_err(|_| "face.jpg missing (checked root and assets/)")?;
                     
-                    let image_bytes = load_file("assets/face.jpg").await
-                        .map_err(|e| format!("face.jpg load_file failed: {:?}", e))?;
-                    println!("LOADED_IMAGE_BYTES: {}", image_bytes.len());
-                    
-                    let texture = Texture2D::from_file_with_format(&image_bytes, Some(ImageFormat::Jpeg));
                     texture.set_filter(FilterMode::Linear);
 
                     let pipeline = load_material(

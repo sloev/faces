@@ -103,13 +103,18 @@ jobs:
           cargo build --release --target wasm32-unknown-unknown -p player
           mkdir -p web-dist/assets
           cp target/wasm32-unknown-unknown/release/player.wasm web-dist/
+          
+          # Flatten assets into root AND keep them in assets/ for maximum compatibility
+          cp assets/timeline.json web-dist/
+          cp assets/face.jpg web-dist/
           cp assets/timeline.json web-dist/assets/
           cp assets/face.jpg web-dist/assets/
           
-          # Download the JS bundle locally to prevent external fetch issues in CI/Pages
           curl -L -o web-dist/mq_js_bundle.js https://not-fl3.github.io/miniquad-samples/mq_js_bundle.js
           
-          # Create index.html referring to LOCAL JS
+          # Debug paths
+          find web-dist
+          
           cat <<EOF > web-dist/index.html
           <!DOCTYPE html>
           <html>
@@ -136,7 +141,6 @@ jobs:
       - name: Web Runtime Smoke Test
         run: |
           npm install puppeteer node-static
-          find web-dist
           node smoke_test.js
 
       - name: Upload Visual Debug Artifact

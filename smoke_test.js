@@ -26,6 +26,10 @@ const server = exec('python3 -m http.server 8080', { cwd: path.join(__dirname, '
         if (text.toLowerCase().includes("panic") || text.toLowerCase().includes("runtimeerror")) runtimeError = true;
     });
 
+    page.on('request', request => {
+        console.log(`[BROWSER FETCH] ${request.url()}`);
+    });
+
     page.on('requestfailed', request => {
         console.error(`[BROWSER ERROR] Request failed: ${request.url()} - ${request.failure().errorText}`);
         if (request.url().includes(".wasm") || request.url().includes(".json")) {
