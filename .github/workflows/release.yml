@@ -104,6 +104,10 @@ jobs:
           mkdir -p web-dist/assets
           cp target/wasm32-unknown-unknown/release/player.wasm web-dist/
           cp -r assets/* web-dist/assets/
+          
+          # Debug paths
+          find web-dist
+          
           cat <<EOF > web-dist/index.html
           <!DOCTYPE html>
           <html>

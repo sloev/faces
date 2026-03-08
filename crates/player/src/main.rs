@@ -13,11 +13,9 @@ fn window_conf() -> Conf {
 
 enum AppState {
     Loading,
-    Error(String),
+    Error,
     Running {
         player: AnimationPlayer,
-        texture: Option<Texture2D>,
-        pipeline: Option<Material>,
     }
 }
 
@@ -25,7 +23,6 @@ enum AppState {
 async fn main() {
     let mut state = AppState::Loading;
 
-    // 1. Initial Path Setup
     #[cfg(not(target_family = "wasm"))]
     {
         if let Ok(mut path) = std::env::current_exe() {
@@ -36,57 +33,40 @@ async fn main() {
         }
     }
 
-    // 2. Load Assets in a non-terminating way
     let load_result = async {
         let json_data = load_string("assets/timeline.json").await
-            .map_err(|e| format!("Failed to load timeline.json: {:?}", e))?;
+            .map_err(|e| {
+                #[cfg(target_family = "wasm")] macroquad::logging::error(&format!("Load failed: {:?}", e));
+                e
+            })?;
         
         let data = AvatarData::from_json(&json_data)
-            .map_err(|e| format!("Failed to parse timeline.json: {:?}", e))?;
+            .map_err(|e| {
+                #[cfg(target_family = "wasm")] macroquad::logging::error(&format!("Parse failed: {:?}", e));
+                e
+            })?;
         
-        let player = AnimationPlayer::new(data.clone());
-        
-        let texture = load_texture("assets/face.jpg").await.ok();
-        if let Some(ref t) = texture {
-            t.set_filter(FilterMode::Linear);
-        }
-
-        Ok(player)
+        Ok(AnimationPlayer::new(data))
     }.await;
 
     match load_result {
         Ok(player) => {
-            state = AppState::Running {
-                player,
-                texture: None, // We'll load properly below
-                pipeline: None,
-            };
+            state = AppState::Running { player };
         }
-        Err(e) => {
-            state = AppState::Error(e);
+        Err(_) => {
+            state = AppState::Error;
         }
     }
 
-    // Re-attempt texture and shader loading inside the main loop if needed, 
-    // but for the smoke test, we just need to not panic.
-
     loop {
-        clear_background(BLACK);
-
         match state {
-            AppState::Loading => {
-                draw_text("Loading...", 20.0, 20.0, 30.0, WHITE);
-            }
-            AppState::Error(ref e) => {
-                draw_text(&format!("Error: {}", e), 20.0, 20.0, 20.0, RED);
-            }
-            AppState::Running { ref mut player, .. } => {
-                let dt = get_frame_time();
-                player.update(dt);
-                draw_text("Engine Running", 20.0, 20.0, 30.0, GREEN);
+            AppState::Loading => clear_background(BLUE),
+            AppState::Error => clear_background(RED),
+            AppState::Running { ref mut player } => {
+                clear_background(GREEN);
+                player.update(get_frame_time());
             }
         }
-
         next_frame().await
     }
 }
