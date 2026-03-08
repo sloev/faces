@@ -33,17 +33,19 @@ async fn main() {
         }
     }
 
-    let load_result = async {
+    let load_result: Result<AnimationPlayer, String> = async {
         let json_data = load_string("assets/timeline.json").await
             .map_err(|e| {
-                #[cfg(target_family = "wasm")] macroquad::logging::error(&format!("Load failed: {:?}", e));
-                e
+                let err = format!("Load failed: {:?}", e);
+                #[cfg(target_family = "wasm")] macroquad::logging::error(&err);
+                err
             })?;
         
         let data = AvatarData::from_json(&json_data)
             .map_err(|e| {
-                #[cfg(target_family = "wasm")] macroquad::logging::error(&format!("Parse failed: {:?}", e));
-                e
+                let err = format!("Parse failed: {:?}", e);
+                #[cfg(target_family = "wasm")] macroquad::logging::error(&err);
+                err
             })?;
         
         Ok(AnimationPlayer::new(data))
