@@ -17,7 +17,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     if std::path::Path::new(model_path).exists() {
         println!("Attempting to load model from '{}'...", model_path);
         match Session::builder() {
-            Ok(builder) => {
+            Ok(mut builder) => {
                 match builder.commit_from_file(model_path) {
                     Ok(s) => session_opt = Some(s),
                     Err(e) => println!("Warning: Failed to commit model from file: {:?}. Using mock data.", e),
