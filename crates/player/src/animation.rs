@@ -106,6 +106,7 @@ pub fn interpolate_clip(clip: &Clip, time: f32) -> Vec<Vertex> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use shared::Frame;
     use std::collections::HashMap;
 
     fn mock_avatar() -> AvatarData {
