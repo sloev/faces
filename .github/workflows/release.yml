@@ -59,12 +59,14 @@ jobs:
           touch AppDir/player.svg
           
           # Download linuxdeploy and appimage plugin
-          wget -c -nv "https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage"
-          wget -c -nv "https://github.com/linuxdeploy/linuxdeploy-plugin-appimage/releases/download/continuous/linuxdeploy-plugin-appimage-x86_64.AppImage"
-          chmod +x linuxdeploy*.AppImage
+          mkdir bin
+          wget -c -nv "https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage" -O bin/linuxdeploy
+          wget -c -nv "https://github.com/linuxdeploy/linuxdeploy-plugin-appimage/releases/download/continuous/linuxdeploy-plugin-appimage-x86_64.AppImage" -O bin/linuxdeploy-plugin-appimage
+          chmod +x bin/linuxdeploy*
+          export PATH="$PWD/bin:$PATH"
           
           export APPIMAGE_EXTRACT_AND_RUN=1
-          ./linuxdeploy-x86_64.AppImage --appdir AppDir --plugin appimage --output appimage
+          linuxdeploy --appdir AppDir --output appimage
           mv Avatar_Player-*-x86_64.AppImage avatar-player-linux-x86_64.AppImage
 
       - name: Build and Package Raspberry Pi (aarch64) Tarball
