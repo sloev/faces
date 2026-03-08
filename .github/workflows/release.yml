@@ -34,10 +34,6 @@ jobs:
           curl -L -o assets/face_mesh.onnx "https://github.com/k-okada/mediapipe-onnx-models/raw/main/face_landmark.onnx"
           # Download a public domain face image
           curl -L -o assets/face.jpg "https://upload.wikimedia.org/wikipedia/commons/a/a5/Front_view_of_a_face.jpg"
-          
-          # Debug: check file sizes
-          ls -lh assets/
-          
           cargo run --release -p generator
 
       - name: Build and Package Linux (x86_64) AppImage
@@ -47,8 +43,9 @@ jobs:
           cp target/release/player AppDir/usr/bin/
           cp -r assets/* AppDir/usr/bin/assets/
           
-          # Create Desktop file
-          cat <<EOF > AppDir/player.desktop
+          # Create Desktop file in the expected location
+          mkdir -p AppDir/usr/share/applications
+          cat <<EOF > AppDir/usr/share/applications/player.desktop
           [Desktop Entry]
           Name=Avatar Player
           Exec=player
@@ -56,7 +53,9 @@ jobs:
           Type=Application
           Categories=Utility;
           EOF
-          touch AppDir/player.svg
+          
+          mkdir -p AppDir/usr/share/icons/hicolor/scalable/apps
+          touch AppDir/usr/share/icons/hicolor/scalable/apps/player.svg
           
           # Download linuxdeploy and appimage plugin
           mkdir bin
@@ -67,11 +66,16 @@ jobs:
           
           export APPIMAGE_EXTRACT_AND_RUN=1
           linuxdeploy --appdir AppDir --output appimage
-          mv Avatar_Player-*-x86_64.AppImage avatar-player-linux-x86_64.AppImage
+          mv Avatar_Player-x86_64.AppImage avatar-player-linux-x86_64.AppImage
 
       - name: Build and Package Raspberry Pi (aarch64) Tarball
         run: |
-          cargo install cross --git https://github.com/cross-rs/cross
+          # Use cross-build if available, otherwise fallback to simple cargo build with linker
+          # For aarch64 we really need a cross-linker. 
+          # Installing cross-rs/cross via binstall is faster
+          curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install.sh | bash
+          cargo binstall -y cross
+          
           cross build --release --target aarch64-unknown-linux-gnu -p player
           mkdir -p rpi-dist/assets
           cp target/aarch64-unknown-linux-gnu/release/player rpi-dist/
