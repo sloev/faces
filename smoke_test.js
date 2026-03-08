@@ -2,11 +2,12 @@ const puppeteer = require('puppeteer');
 const { exec } = require('child_process');
 const path = require('path');
 
+// Use python3 to serve for absolute simplicity
 const server = exec('python3 -m http.server 8080', { cwd: path.join(__dirname, 'web-dist') });
 
 (async () => {
     console.log("--- 🌐 STARTING WEB VISUAL SMOKE TEST ---");
-    await new Promise(r => setTimeout(r, 2000));
+    await new Promise(r => setTimeout(r, 2000)); // Wait for server
 
     const browser = await puppeteer.launch({
         headless: "new",
@@ -21,8 +22,12 @@ const server = exec('python3 -m http.server 8080', { cwd: path.join(__dirname, '
     page.on('console', msg => {
         const text = msg.text();
         console.log(`[BROWSER CONSOLE] ${msg.type().toUpperCase()}: ${text}`);
-        if (text.includes("RENDER_LOOP_STARTED")) successSignal = true;
-        if (text.toLowerCase().includes("panic") || text.toLowerCase().includes("runtimeerror")) runtimeError = true;
+        if (text.includes("RENDER_LOOP_STARTED")) {
+            successSignal = true;
+        }
+        if (text.toLowerCase().includes("panic") || text.toLowerCase().includes("runtimeerror")) {
+            runtimeError = true;
+        }
     });
 
     page.on('pageerror', err => {
@@ -37,6 +42,7 @@ const server = exec('python3 -m http.server 8080', { cwd: path.join(__dirname, '
         
         console.log("📸 CAPTURING SCREENSHOT...");
         await page.screenshot({ path: 'ci_screenshot.png' });
+        console.log("Screenshot saved to ci_screenshot.png");
         
     } catch (e) {
         console.error("Navigation failed:", e);
@@ -47,8 +53,11 @@ const server = exec('python3 -m http.server 8080', { cwd: path.join(__dirname, '
     server.kill();
 
     if (runtimeError || !successSignal) {
+        if (!successSignal) console.error("--- ❌ WEB SMOKE TEST FAILED: Never reached RENDER_LOOP_STARTED ---");
+        else console.error("--- ❌ WEB SMOKE TEST FAILED ---");
         process.exit(1);
     } else {
+        console.log("--- ✅ WEB SMOKE TEST PASSED ---");
         process.exit(0);
     }
 })();

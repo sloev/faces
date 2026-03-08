@@ -25,7 +25,7 @@ enum AppState {
 
 #[macroquad::main(window_conf)]
 async fn main() {
-    let mut state = AppState::Waiting;
+    let mut state = AppState::Loading;
     let mut frame_count = 0;
 
     #[cfg(not(target_family = "wasm"))]
@@ -79,6 +79,7 @@ async fn main() {
             }
             AppState::Error(ref e) => {
                 clear_background(RED);
+                // Non-panicking draw_text
                 draw_text(&format!("Error: {}", e), 20.0, 20.0, 20.0, WHITE);
             }
             AppState::Running(ref mut res) => {
@@ -94,7 +95,6 @@ async fn main() {
                     unsafe {
                         if !LOGGED_COORDS {
                             let v = vertices[0];
-                            // Scale matches the map() below: v.x * 600 + 100
                             let sx = v.x * 600.0 + 100.0;
                             let sy = v.y * 600.0 + 100.0;
                             macroquad::logging::info!(&format!("DEBUG_COORDS: Raw({:.2}, {:.2}) -> Screen({:.2}, {:.2})", v.x, v.y, sx, sy));
@@ -116,7 +116,7 @@ async fn main() {
                         })
                         .collect();
 
-                    // USE DEFAULT MATERIAL (Removed custom shaders)
+                    // USE DEFAULT MATERIAL
                     draw_mesh(&Mesh {
                         vertices: mq_vertices,
                         indices: res.player.data.mesh_indices.iter().map(|&i| i as u16).collect(),
