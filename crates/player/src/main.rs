@@ -70,7 +70,7 @@ async fn main() {
 
     let mut player = AnimationPlayer::new(data.clone());
 
-    // 2. Load Texture (Avoid from_rgba8 if possible to prevent early-init panics)
+    // 2. Load Texture
     let texture = match load_texture("assets/face.jpg").await {
         Ok(t) => {
             t.set_filter(FilterMode::Linear);
@@ -78,8 +78,7 @@ async fn main() {
         },
         Err(e) => {
             error!("ERROR: assets/face.jpg missing: {:?}", e);
-            // Return a white 1x1 texture using white_texture() which is safer
-            white_texture()
+            Texture2D::from_rgba8(1, 1, &[255, 255, 255, 255])
         }
     };
 
