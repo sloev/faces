@@ -34,6 +34,9 @@ jobs:
           curl -L -o assets/face.jpg "https://upload.wikimedia.org/wikipedia/commons/a/a5/Front_view_of_a_face.jpg"
           cargo run --release -p generator
 
+      - name: Run Workspace Tests
+        run: cargo test --workspace
+
       - name: Setup Multi-Platform Tools
         run: |
           mkdir -p bin
