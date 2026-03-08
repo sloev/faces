@@ -72,26 +72,21 @@ async fn main() {
 
         match state {
             AppState::Waiting => {
-                if frame_count > 60 { // 1 second delay
+                if frame_count > 60 {
                     state = AppState::Loading;
                 }
             }
             AppState::Loading => {
                 let res = async {
-                    let json_data = if let Ok(d) = load_string("assets/timeline.json").await {
-                        Ok(d)
-                    } else {
-                        load_string("timeline.json").await
-                    }.map_err(|_| "timeline.json missing")?;
+                    // Strictly relative paths for Wasm compatibility
+                    let json_data = load_string("assets/timeline.json").await
+                        .map_err(|e| format!("Load failed assets/timeline.json: {:?}", e))?;
                     
-                    let data = AvatarData::from_json(&json_data).map_err(|e| format!("JSON error: {:?}", e))?;
+                    let data = AvatarData::from_json(&json_data)
+                        .map_err(|e| format!("Parse failed timeline.json: {:?}", e))?;
                     
-                    let texture = if let Ok(t) = load_texture("assets/face.jpg").await {
-                        Ok(t)
-                    } else {
-                        load_texture("face.jpg").await
-                    }.map_err(|_| "face.jpg missing")?;
-                    
+                    let texture = load_texture("assets/face.jpg").await
+                        .map_err(|e| format!("Load failed assets/face.jpg: {:?}", e))?;
                     texture.set_filter(FilterMode::Linear);
 
                     let pipeline = load_material(
@@ -112,13 +107,16 @@ async fn main() {
                         println!("RENDER_LOOP_STARTED");
                     }
                     Err(e) => {
-                        eprintln!("Error: {}", e);
+                        eprintln!("[ERROR] {}", e);
                         state = AppState::Error(e);
                     }
                 }
             }
-            AppState::Error(_) => {
+            AppState::Error(ref e) => {
                 clear_background(RED);
+                // In Wasm, we rely on the console log above
+                #[cfg(not(target_family = "wasm"))]
+                draw_text(&format!("Error: {}", e), 20.0, 20.0, 20.0, WHITE);
             }
             AppState::Running(ref mut res) => {
                 clear_background(Color::new(0.1, 0.1, 0.12, 1.0));
