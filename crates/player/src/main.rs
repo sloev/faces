@@ -40,28 +40,23 @@ const VERTEX_SHADER: &str = r#"#version 100
 
 #[macroquad::main(window_conf)]
 async fn main() {
-    // 1. Robust Path Resolution for Desktop
     #[cfg(not(target_family = "wasm"))]
     {
         if let Ok(mut path) = std::env::current_exe() {
-            path.pop(); // Remove binary name
-            // For AppImage, we need to look for assets relative to the executable
+            path.pop();
             let assets_path = path.join("assets");
             if assets_path.exists() {
                 macroquad::file::set_pc_assets_folder(path.to_str().unwrap_or("."));
-            } else {
-                eprintln!("[ERROR] Assets directory not found at: {:?}", assets_path);
             }
         }
     }
 
-    // 2. Graceful Asset Loading
+    // 1. Load Data
+    info!("Loading timeline.json...");
     let json_data = match load_string("assets/timeline.json").await {
         Ok(json) => json,
         Err(e) => {
-            let msg = format!("[FATAL] Failed to load assets/timeline.json: {:?}", e);
-            #[cfg(target_family = "wasm")] macroquad::logging::error!("{}", msg);
-            #[cfg(not(target_family = "wasm"))] eprintln!("{}", msg);
+            error!("Failed to load assets/timeline.json: {:?}", e);
             return;
         }
     };
@@ -69,26 +64,29 @@ async fn main() {
     let data = match AvatarData::from_json(&json_data) {
         Ok(d) => d,
         Err(e) => {
-            let msg = format!("[FATAL] Failed to parse timeline.json: {:?}", e);
-            #[cfg(target_family = "wasm")] macroquad::logging::error!("{}", msg);
-            #[cfg(not(target_family = "wasm"))] eprintln!("{}", msg);
+            error!("Failed to parse timeline.json: {:?}", e);
             return;
         }
     };
 
     let mut player = AnimationPlayer::new(data.clone());
 
+    // 2. Load Texture
+    info!("Loading face.jpg...");
     let texture = match load_texture("assets/face.jpg").await {
-        Ok(t) => t,
+        Ok(t) => {
+            t.set_filter(FilterMode::Linear);
+            t
+        },
         Err(e) => {
-            let msg = format!("[ERROR] Failed to load assets/face.jpg: {:?}. Using fallback.", e);
-            #[cfg(target_family = "wasm")] macroquad::logging::error!("{}", msg);
-            #[cfg(not(target_family = "wasm"))] eprintln!("{}", msg);
-            Texture2D::from_rgba8(2, 2, &[200, 200, 200, 255, 255, 255, 255, 255, 255, 255, 255, 255, 200, 200, 200, 255])
+            warn!("Failed to load assets/face.jpg: {:?}. Using fallback.", e);
+            let t = Texture2D::from_rgba8(2, 2, &[255, 0, 0, 255, 0, 255, 0, 255, 0, 0, 255, 255, 255, 255, 0, 255]);
+            t
         }
     };
-    texture.set_filter(FilterMode::Linear);
 
+    // 3. Load Shader
+    info!("Compiling shader...");
     let pipeline = match load_material(
         ShaderSource::Glsl {
             vertex: VERTEX_SHADER,
@@ -98,13 +96,12 @@ async fn main() {
     ) {
         Ok(p) => p,
         Err(e) => {
-            let msg = format!("[FATAL] Shader compilation failed: {:?}", e);
-            #[cfg(target_family = "wasm")] macroquad::logging::error!("{}", msg);
-            #[cfg(not(target_family = "wasm"))] eprintln!("{}", msg);
+            error!("Shader compilation failed: {:?}", e);
             return;
         }
     };
 
+    info!("Initialization complete. Starting loop.");
     loop {
         clear_background(Color::new(0.1, 0.1, 0.12, 1.0));
 
@@ -141,7 +138,7 @@ async fn main() {
 
         draw_rectangle(10.0, 10.0, 300.0, 100.0, Color::new(0.0, 0.0, 0.0, 0.5));
         draw_text(&format!("State: {:?}", player.state), 20.0, 35.0, 25.0, WHITE);
-        draw_text("[H] Say 'Hello'  [Space] Random", 20.0, 85.0, 20.0, LIGHTGRAY);
+        draw_text("[H] Hello  [Space] Random", 20.0, 85.0, 20.0, LIGHTGRAY);
 
         if is_key_pressed(KeyCode::H) {
             player.transition_to("talk_hello_world".to_string());

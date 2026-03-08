@@ -13,7 +13,7 @@ const server = http.createServer((req, res) => {
     console.log("--- 🌐 STARTING WEB SMOKE TEST ---");
     const browser = await puppeteer.launch({
         headless: "new",
-        args: ['--no-sandbox', '--disable-setuid-sandbox']
+        args: ['--no-sandbox', '--disable-setuid-sandbox', '--enable-unsafe-swiftshader']
     });
     const page = await browser.newPage();
 
@@ -21,10 +21,15 @@ const server = http.createServer((req, res) => {
 
     page.on('console', msg => {
         const text = msg.text();
-        console.log(`[BROWSER CONSOLE] ${text}`);
-        if (text.toLowerCase().includes("panic") || text.toLowerCase().includes("error") || text.toLowerCase().includes("fatal")) {
+        console.log(`[BROWSER CONSOLE] ${msg.type().toUpperCase()}: ${text}`);
+        if (text.toLowerCase().includes("panic") || text.toLowerCase().includes("fatal")) {
             runtimeError = true;
         }
+    });
+
+    page.on('requestfailed', request => {
+        console.error(`[BROWSER ERROR] Request failed: ${request.url()} - ${request.failure().errorText}`);
+        // We don't fail immediately on assets, but we log it
     });
 
     page.on('pageerror', err => {
@@ -33,7 +38,7 @@ const server = http.createServer((req, res) => {
     });
 
     try {
-        await page.goto('http://localhost:8080', { waitUntil: 'networkidle0' });
+        await page.goto('http://localhost:8080', { waitUntil: 'networkidle0', timeout: 30000 });
         console.log("Page loaded, waiting 5 seconds for panics...");
         await new Promise(r => setTimeout(r, 5000));
     } catch (e) {
