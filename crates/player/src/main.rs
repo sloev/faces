@@ -63,9 +63,13 @@ async fn main() {
                     let json_data = json_data.ok_or("timeline.json not found in assets/ or root")?;
                     let data = AvatarData::from_json(&json_data).map_err(|e| format!("Parse error: {:?}", e))?;
                     
-                    let texture = load_texture("assets/face.jpg").await
-                        .or_else(|_| load_texture("face.jpg").await)
-                        .map_err(|e| format!("Texture error: {:?}", e))?;
+                    let texture = if let Ok(t) = load_texture("assets/face.jpg").await {
+                        Some(t)
+                    } else {
+                        load_texture("face.jpg").await.ok()
+                    };
+                    
+                    let texture = texture.ok_or("face.jpg not found")?;
                     
                     texture.set_filter(FilterMode::Linear);
                     
