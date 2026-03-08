@@ -72,25 +72,28 @@ async fn main() {
 
         match state {
             AppState::Waiting => {
-                // Extended delay for Wasm stabilization (3 seconds)
-                if frame_count > 180 {
+                if frame_count > 120 {
                     state = AppState::Loading;
                 }
             }
             AppState::Loading => {
                 let res = async {
-                    // Safe asset probing
-                    let timeline_path = "assets/timeline.json";
-                    let face_path = "assets/face.jpg";
-
-                    let json_data = load_string(timeline_path).await
-                        .map_err(|e| format!("{} load failed: {:?}", timeline_path, e))?;
+                    // Use load_file to avoid early texture panics
+                    let json_bytes = load_file("assets/timeline.json").await
+                        .map_err(|e| format!("timeline.json load_file failed: {:?}", e))?;
+                    println!("LOADED_JSON_BYTES: {}", json_bytes.len());
+                    
+                    let json_data = String::from_utf8(json_bytes)
+                        .map_err(|e| format!("UTF8 error: {:?}", e))?;
                     
                     let data = AvatarData::from_json(&json_data)
-                        .map_err(|e| format!("JSON parse failed: {:?}", e))?;
+                        .map_err(|e| format!("JSON parse error: {:?}", e))?;
                     
-                    let texture = load_texture(face_path).await
-                        .map_err(|e| format!("{} load failed: {:?}", face_path, e))?;
+                    let image_bytes = load_file("assets/face.jpg").await
+                        .map_err(|e| format!("face.jpg load_file failed: {:?}", e))?;
+                    println!("LOADED_IMAGE_BYTES: {}", image_bytes.len());
+                    
+                    let texture = Texture2D::from_file_with_format(&image_bytes, Some(ImageFormat::Jpg));
                     texture.set_filter(FilterMode::Linear);
 
                     let pipeline = load_material(
@@ -116,10 +119,8 @@ async fn main() {
                     }
                 }
             }
-            AppState::Error(ref e) => {
+            AppState::Error(_) => {
                 clear_background(RED);
-                #[cfg(not(target_family = "wasm"))]
-                draw_text(&format!("Error: {}", e), 20.0, 20.0, 20.0, WHITE);
             }
             AppState::Running(ref mut res) => {
                 clear_background(Color::new(0.1, 0.1, 0.12, 1.0));
