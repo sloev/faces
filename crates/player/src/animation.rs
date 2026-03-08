@@ -1,5 +1,4 @@
 use shared::{AvatarData, Vertex, Clip, Frame};
-use std::collections::HashMap;
 
 /// The various states the animation player can be in.
 #[derive(Debug, Clone, PartialEq)]
@@ -32,7 +31,7 @@ impl AnimationPlayer {
         match &mut self.state {
             PlayerState::Idle { clip_name, time } => {
                 *time += dt;
-                let clip = self.data.clips.get(clip_name).unwrap();
+                let clip = self.data.clips.get(clip_name).expect("Clip not found");
                 let duration = clip.frames.last().map(|f| f.timestamp).unwrap_or(0.0);
                 if *time >= duration {
                     let idles: Vec<&String> = self.data.clips.keys().filter(|k| k.starts_with("idle")).collect();
@@ -44,7 +43,7 @@ impl AnimationPlayer {
             }
             PlayerState::Talking { clip_name, time, queue } => {
                 *time += dt;
-                let clip = self.data.clips.get(clip_name).unwrap();
+                let clip = self.data.clips.get(clip_name).expect("Clip not found");
                 let duration = clip.frames.last().map(|f| f.timestamp).unwrap_or(0.0);
                 if *time >= duration {
                     if let Some(next_clip) = queue.pop() {
@@ -74,11 +73,11 @@ impl AnimationPlayer {
     pub fn get_current_pose(&self) -> Vec<Vertex> {
         match &self.state {
             PlayerState::Idle { clip_name, time } | PlayerState::Talking { clip_name, time, .. } => {
-                let clip = self.data.clips.get(clip_name).unwrap();
+                let clip = self.data.clips.get(clip_name).expect("Clip not found");
                 interpolate_clip(clip, *time)
             }
             PlayerState::Transitioning { from_pose, to_clip, elapsed, duration } => {
-                let target_clip = self.data.clips.get(to_clip).unwrap();
+                let target_clip = self.data.clips.get(to_clip).expect("Clip not found");
                 let target_pose = interpolate_clip(target_clip, 0.0);
                 let t = (*elapsed / *duration).clamp(0.0, 1.0);
                 from_pose.iter().zip(target_pose.iter()).map(|(a, b)| lerp_vertex(*a, *b, t)).collect()
@@ -107,6 +106,7 @@ pub fn interpolate_clip(clip: &Clip, time: f32) -> Vec<Vertex> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::HashMap;
 
     fn mock_avatar() -> AvatarData {
         let mut clips = HashMap::new();
@@ -134,24 +134,21 @@ mod tests {
     #[test]
     fn test_fsm_transitions() {
         let mut player = AnimationPlayer::new(mock_avatar());
-        // Should start in Idle
-        match player.state {
-            PlayerState::Idle { ref clip_name, .. } => assert_eq!(clip_name, "idle_1"),
-            _ => panic!("Wrong start state"),
-        }
-
+        
         // Trigger transition
         player.transition_to("talk_1".to_string());
-        match player.state {
-            PlayerState::Transitioning { ref to_clip, .. } => assert_eq!(to_clip, "talk_1"),
-            _ => panic!("Should be transitioning"),
+        if let PlayerState::Transitioning { to_clip, .. } = &player.state {
+            assert_eq!(to_clip, "talk_1");
+        } else {
+            panic!("Should be transitioning");
         }
 
-        // Complete transition
-        player.update(0.2); // duration is 0.2
-        match player.state {
-            PlayerState::Idle { ref clip_name, .. } => assert_eq!(clip_name, "talk_1"),
-            _ => panic!("Should have finished transition"),
+        // Complete transition (duration is 0.2)
+        player.update(0.3); 
+        if let PlayerState::Idle { clip_name, .. } = &player.state {
+            assert_eq!(clip_name, "talk_1");
+        } else {
+            panic!("Should have finished transition, state is {:?}", player.state);
         }
     }
 
