@@ -73,7 +73,7 @@ async fn main() {
 
         match state {
             AppState::Waiting => {
-                if frame_count > 60 {
+                if frame_count > 30 {
                     state = AppState::Loading;
                 }
             }
@@ -103,10 +103,10 @@ async fn main() {
                             pipeline,
                             loading_texture: false,
                         });
-                        println!("RENDER_LOOP_STARTED");
+                        macroquad::logging::info!("RENDER_LOOP_STARTED");
                     }
                     Err(e) => {
-                        eprintln!("[ERROR] {}", e);
+                        macroquad::logging::error!("{}", &e);
                         state = AppState::Error(e);
                     }
                 }
@@ -117,14 +117,6 @@ async fn main() {
             AppState::Running(ref mut rs) => {
                 clear_background(Color::new(0.1, 0.1, 0.12, 1.0));
                 rs.player.update(get_frame_time());
-
-                // Background Texture Loading
-                if rs.texture.is_none() && !rs.loading_texture && frame_count > 200 {
-                    rs.loading_texture = true;
-                    // We don't await here to keep the loop running
-                    // But load_texture is async... we'll use a trick or just wait.
-                    // For the smoke test, being in Running is enough!
-                }
 
                 let vertices = rs.player.get_current_pose();
                 if !vertices.is_empty() {
