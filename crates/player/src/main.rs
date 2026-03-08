@@ -52,11 +52,10 @@ async fn main() {
     }
 
     // 1. Load Data
-    info!("Loading timeline.json...");
     let json_data = match load_string("assets/timeline.json").await {
         Ok(json) => json,
         Err(e) => {
-            error!("Failed to load assets/timeline.json: {:?}", e);
+            error!("FATAL: assets/timeline.json missing: {:?}", e);
             return;
         }
     };
@@ -64,29 +63,27 @@ async fn main() {
     let data = match AvatarData::from_json(&json_data) {
         Ok(d) => d,
         Err(e) => {
-            error!("Failed to parse timeline.json: {:?}", e);
+            error!("FATAL: timeline.json corrupt: {:?}", e);
             return;
         }
     };
 
     let mut player = AnimationPlayer::new(data.clone());
 
-    // 2. Load Texture
-    info!("Loading face.jpg...");
+    // 2. Load Texture (Avoid from_rgba8 if possible to prevent early-init panics)
     let texture = match load_texture("assets/face.jpg").await {
         Ok(t) => {
             t.set_filter(FilterMode::Linear);
             t
         },
         Err(e) => {
-            warn!("Failed to load assets/face.jpg: {:?}. Using fallback.", e);
-            let t = Texture2D::from_rgba8(2, 2, &[255, 0, 0, 255, 0, 255, 0, 255, 0, 0, 255, 255, 255, 255, 0, 255]);
-            t
+            error!("ERROR: assets/face.jpg missing: {:?}", e);
+            // Return a white 1x1 texture using white_texture() which is safer
+            white_texture()
         }
     };
 
     // 3. Load Shader
-    info!("Compiling shader...");
     let pipeline = match load_material(
         ShaderSource::Glsl {
             vertex: VERTEX_SHADER,
@@ -96,45 +93,41 @@ async fn main() {
     ) {
         Ok(p) => p,
         Err(e) => {
-            error!("Shader compilation failed: {:?}", e);
+            error!("FATAL: Shader error: {:?}", e);
             return;
         }
     };
 
-    info!("Initialization complete. Starting loop.");
     loop {
-        clear_background(Color::new(0.1, 0.1, 0.12, 1.0));
+        clear_background(BLACK);
 
         let dt = get_frame_time();
         player.update(dt);
 
         let vertices = player.get_current_pose();
-        if vertices.is_empty() {
-            next_frame().await;
-            continue;
+        if !vertices.is_empty() {
+            let mq_vertices: Vec<macroquad::models::Vertex> = vertices
+                .iter()
+                .enumerate()
+                .map(|(i, v)| {
+                    let uv = data.base_uvs.get(i).cloned().unwrap_or(shared::Vertex { x: 0.0, y: 0.0 });
+                    macroquad::models::Vertex {
+                        position: vec3(v.x * 600.0 + 100.0, v.y * 600.0 + 100.0, 0.0),
+                        uv: vec2(uv.x, uv.y),
+                        color: [255, 255, 255, 255],
+                        normal: vec4(0.0, 0.0, 1.0, 0.0),
+                    }
+                })
+                .collect();
+
+            gl_use_material(&pipeline);
+            draw_mesh(&Mesh {
+                vertices: mq_vertices,
+                indices: data.mesh_indices.iter().map(|&i| i as u16).collect(),
+                texture: Some(texture.clone()),
+            });
+            gl_use_default_material();
         }
-
-        let mq_vertices: Vec<macroquad::models::Vertex> = vertices
-            .iter()
-            .enumerate()
-            .map(|(i, v)| {
-                let uv = data.base_uvs.get(i).cloned().unwrap_or(shared::Vertex { x: 0.0, y: 0.0 });
-                macroquad::models::Vertex {
-                    position: vec3(v.x * 600.0 + 100.0, v.y * 600.0 + 100.0, 0.0),
-                    uv: vec2(uv.x, uv.y),
-                    color: [255, 255, 255, 255],
-                    normal: vec4(0.0, 0.0, 1.0, 0.0),
-                }
-            })
-            .collect();
-
-        gl_use_material(&pipeline);
-        draw_mesh(&Mesh {
-            vertices: mq_vertices,
-            indices: data.mesh_indices.iter().map(|&i| i as u16).collect(),
-            texture: Some(texture.clone()),
-        });
-        gl_use_default_material();
 
         draw_rectangle(10.0, 10.0, 300.0, 100.0, Color::new(0.0, 0.0, 0.0, 0.5));
         draw_text(&format!("State: {:?}", player.state), 20.0, 35.0, 25.0, WHITE);
