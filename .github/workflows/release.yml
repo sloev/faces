@@ -1,0 +1,108 @@
+name: Release Pipeline
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown, aarch64-unknown-linux-gnu
+
+      - name: Install System Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libasound2-dev libudev-dev pkg-config libx11-dev libxi-dev libgl1-mesa-dev wget fuse zip
+
+      - name: Prepare Assets & Generate Data
+        run: |
+          mkdir -p assets
+          curl -L -o assets/face_mesh.onnx https://github.com/valet-m/mediapipe-onnx-models/raw/main/face_landmark.onnx
+          curl -L -o assets/face.jpg https://raw.githubusercontent.com/google/mediapipe/master/mediapipe/examples/desktop/face_mesh/testdata/face_2d.jpg
+          cargo run --release -p generator
+
+      - name: Build and Package Linux (x86_64) AppImage
+        run: |
+          cargo build --release -p player
+          
+          # Setup AppDir
+          mkdir -p AppDir/usr/bin/assets
+          cp target/release/player AppDir/usr/bin/
+          cp -r assets/* AppDir/usr/bin/assets/
+          
+          # Create Desktop file
+          cat <<EOF > AppDir/player.desktop
+          [Desktop Entry]
+          Name=Avatar Player
+          Exec=player
+          Icon=player
+          Type=Application
+          Categories=Utility;
+          EOF
+          touch AppDir/player.svg
+          
+          # Download and run linuxdeploy
+          wget -c -nv "https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage"
+          chmod +x linuxdeploy-x86_64.AppImage
+          ./linuxdeploy-x86_64.AppImage --appdir AppDir --output appimage
+          mv Avatar_Player-*-x86_64.AppImage avatar-player-linux-x86_64.AppImage
+
+      - name: Build and Package Raspberry Pi (aarch64) Tarball
+        run: |
+          cargo install cross --git https://github.com/cross-rs/cross
+          cross build --release --target aarch64-unknown-linux-gnu -p player
+          
+          mkdir -p rpi-dist/assets
+          cp target/aarch64-unknown-linux-gnu/release/player rpi-dist/
+          cp -r assets/* rpi-dist/assets/
+          tar -czvf avatar-player-rpi-aarch64.tar.gz -C rpi-dist .
+
+      - name: Build and Package Web (Wasm) Zip
+        run: |
+          cargo build --release --target wasm32-unknown-unknown -p player
+          
+          mkdir -p web-dist/assets
+          cp target/wasm32-unknown-unknown/release/player.wasm web-dist/
+          cp -r assets/* web-dist/assets/
+          
+          cat <<EOF > web-dist/index.html
+          <!DOCTYPE html>
+          <html>
+          <head>
+              <meta charset="utf-8">
+              <title>Avatar Player (Web)</title>
+              <style>
+                  body { margin: 0; background: black; overflow: hidden; }
+                  canvas { width: 100vw; height: 100vh; }
+              </style>
+          </head>
+          <body>
+              <canvas id="glcanvas"></canvas>
+              <script src="https://not-fl3.github.io/miniquad-samples/mq_js_bundle.js"></script>
+              <script>load("player.wasm");</script>
+          </body>
+          </html>
+          EOF
+          
+          zip -r avatar-player-web.zip web-dist
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            avatar-player-linux-x86_64.AppImage
+            avatar-player-rpi-aarch64.tar.gz
+            avatar-player-web.zip
+          draft: false
+          prerelease: false
