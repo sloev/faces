@@ -30,13 +30,19 @@ jobs:
       - name: Prepare Assets & Generate Data
         run: |
           mkdir -p assets
-          # Download the MediaPipe Face Mesh ONNX model (trying a more stable mirror)
-          curl -L -o assets/face_mesh.onnx https://github.com/k-okada/mediapipe-onnx-models/raw/main/face_landmark.onnx
-          # Download the test face image
-          curl -L -o assets/face.jpg https://raw.githubusercontent.com/google/mediapipe/master/mediapipe/examples/desktop/face_mesh/testdata/face_2d.jpg
+          # Download a verified MediaPipe Face Mesh ONNX model
+          curl -L -o assets/face_mesh.onnx https://github.com/PINTO0309/PINTO_model_zoo/raw/main/032_FaceMesh/01_float32/model_float32.onnx
+          # Download a verified test face image
+          curl -L -o assets/face.jpg https://github.com/google/mediapipe/raw/master/mediapipe/examples/desktop/face_mesh/testdata/face_2d.jpg
           
           # Debug: check file sizes
           ls -lh assets/
+          
+          # If face_mesh.onnx is too small, something is wrong
+          if [ $(stat -c%s "assets/face_mesh.onnx") -lt 1000000 ]; then
+            echo "Error: face_mesh.onnx is too small. Download failed?"
+            exit 1
+          fi
           
           cargo run --release -p generator
 
