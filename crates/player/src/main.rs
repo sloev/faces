@@ -102,9 +102,9 @@ async fn main() {
                             macroquad::models::Vertex {
                                 position: vec3(v.x * 600.0 + 100.0, v.y * 600.0 + 100.0, 0.0),
                                 uv: vec2(uv.x, uv.y),
-                                color: [255, 255, 255, 255],
-                                normal: vec4(0.0, 0.0, 1.0, 0.0),
+                                color: WHITE,
                             }
+
                         })
                         .collect();
 
