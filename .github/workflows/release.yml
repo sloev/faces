@@ -30,8 +30,19 @@ jobs:
       - name: Prepare Assets & Generate Data
         run: |
           mkdir -p assets
-          curl -L -o assets/face_mesh.onnx "https://github.com/k-okada/mediapipe-onnx-models/raw/main/face_landmark.onnx"
-          curl -L -o assets/face.jpg "https://upload.wikimedia.org/wikipedia/commons/a/a5/Front_view_of_a_face.jpg"
+          # Download a more reliable MediaPipe model (this one is ~2.7MB)
+          curl -L -o assets/face_mesh.onnx "https://github.com/PINTO0309/PINTO_model_zoo/raw/main/032_FaceMesh/01_float32/model_float32.onnx"
+          # Download a real face image from a stable CDN
+          curl -L -o assets/face.jpg "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a5/Front_view_of_a_face.jpg/192px-Front_view_of_a_face.jpg"
+          
+          # Validation: ensure model is > 1MB and image is > 1KB
+          if [ $(stat -c%s "assets/face_mesh.onnx") -lt 1000000 ]; then
+            echo "Warning: face_mesh.onnx download might have failed or is incorrect size."
+          fi
+          if [ $(stat -c%s "assets/face.jpg") -lt 1000 ]; then
+            echo "Warning: face.jpg download might have failed or is incorrect size."
+          fi
+          
           cargo run --release -p generator
 
       - name: Run Workspace Tests
@@ -45,7 +56,7 @@ jobs:
           wget -c -nv "https://github.com/cross-rs/cross/releases/download/v0.2.5/cross-x86_64-unknown-linux-musl.tar.gz"
           tar -xvf cross-x86_64-unknown-linux-musl.tar.gz -C bin/
           chmod +x bin/linuxdeploy* bin/cross
-          echo "$PWD/bin" >> $GITHUB_PATH
+          echo "$GITHUB_WORKSPACE/bin" >> $GITHUB_PATH
 
       - name: Build and Package Linux (x86_64) AppImage
         run: |
