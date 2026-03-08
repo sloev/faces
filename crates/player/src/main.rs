@@ -113,7 +113,7 @@ async fn main() {
                         macroquad::logging::info!("RENDER_LOOP_STARTED");
                     }
                     Err(e) => {
-                        macroquad::logging::error(&e);
+                        macroquad::logging::error!("{}", &e);
                         state = AppState::Error(e);
                     }
                 }
