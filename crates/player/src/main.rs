@@ -4,7 +4,7 @@ use shared::AvatarData;
 
 fn window_conf() -> Conf {
     Conf {
-        window_title: "Faces Engine - Debug Mode".to_owned(),
+        window_title: "Faces Engine".to_owned(),
         window_width: 800,
         window_height: 800,
         ..Default::default()
@@ -25,7 +25,7 @@ enum AppState {
 
 #[macroquad::main(window_conf)]
 async fn main() {
-    let mut state = AppState::Loading;
+    let mut state = AppState::Waiting;
     let mut frame_count = 0;
 
     #[cfg(not(target_family = "wasm"))]
@@ -44,18 +44,29 @@ async fn main() {
 
         match state {
             AppState::Waiting => {
-                if frame_count > 20 {
+                if frame_count > 60 { // Wait 1 second (at 60fps)
                     state = AppState::Loading;
                 }
             }
             AppState::Loading => {
                 let res = async {
-                    let json_data = load_string("assets/timeline.json").await
-                        .map_err(|e| format!("JSON load failed: {:?}", e))?;
-                    let data = AvatarData::from_json(&json_data)
-                        .map_err(|e| format!("JSON parse failed: {:?}", e))?;
+                    // Try different paths for Wasm flexibility
+                    let paths = ["assets/timeline.json", "timeline.json"];
+                    let mut json_data = None;
+                    for p in paths {
+                        if let Ok(data) = load_string(p).await {
+                            json_data = Some(data);
+                            break;
+                        }
+                    }
+                    
+                    let json_data = json_data.ok_or("timeline.json not found in assets/ or root")?;
+                    let data = AvatarData::from_json(&json_data).map_err(|e| format!("Parse error: {:?}", e))?;
+                    
                     let texture = load_texture("assets/face.jpg").await
-                        .map_err(|e| format!("Texture load failed: {:?}", e))?;
+                        .or_else(|_| load_texture("face.jpg").await)
+                        .map_err(|e| format!("Texture error: {:?}", e))?;
+                    
                     texture.set_filter(FilterMode::Linear);
                     
                     Ok(Resources {
@@ -72,36 +83,20 @@ async fn main() {
                     }
                     Err(e) => {
                         #[cfg(target_family = "wasm")]
-                        macroquad::logging::error!("{}", &e);
+                        macroquad::logging::error(&e);
                         state = AppState::Error(e);
                     }
                 }
             }
-            AppState::Error(ref e) => {
+            AppState::Error(_) => {
                 clear_background(RED);
-                // Non-panicking draw_text
-                draw_text(&format!("Error: {}", e), 20.0, 20.0, 20.0, WHITE);
             }
             AppState::Running(ref mut res) => {
                 clear_background(DARKGRAY);
-                
-                let dt = get_frame_time();
-                res.player.update(dt);
+                res.player.update(get_frame_time());
 
                 let vertices = res.player.get_current_pose();
                 if !vertices.is_empty() {
-                    // COORDINATE AUDIT LOG (First frame only)
-                    static mut LOGGED_COORDS: bool = false;
-                    unsafe {
-                        if !LOGGED_COORDS {
-                            let v = vertices[0];
-                            let sx = v.x * 600.0 + 100.0;
-                            let sy = v.y * 600.0 + 100.0;
-                            macroquad::logging::info!("{}", &format!("DEBUG_COORDS: Raw({:.2}, {:.2}) -> Screen({:.2}, {:.2})", v.x, v.y, sx, sy));
-                            LOGGED_COORDS = true;
-                        }
-                    }
-
                     let mq_vertices: Vec<macroquad::models::Vertex> = vertices
                         .iter()
                         .enumerate()
@@ -116,43 +111,11 @@ async fn main() {
                         })
                         .collect();
 
-                    // USE DEFAULT MATERIAL
                     draw_mesh(&Mesh {
                         vertices: mq_vertices,
                         indices: res.player.data.mesh_indices.iter().map(|&i| i as u16).collect(),
                         texture: Some(res.texture.clone()),
                     });
-
-                    // WIREFRAME DEBUG MODE
-                    let indices = &res.player.data.mesh_indices;
-                    for i in (0..indices.len()).step_by(3) {
-                        if i + 2 < indices.len() {
-                            let v1 = vertices[indices[i] as usize];
-                            let v2 = vertices[indices[i+1] as usize];
-                            let v3 = vertices[indices[i+2] as usize];
-                            let p1 = vec2(v1.x * 600.0 + 100.0, v1.y * 600.0 + 100.0);
-                            let p2 = vec2(v2.x * 600.0 + 100.0, v2.y * 600.0 + 100.0);
-                            let p3 = vec2(v3.x * 600.0 + 100.0, v3.y * 600.0 + 100.0);
-                            draw_line(p1.x, p1.y, p2.x, p2.y, 1.0, RED);
-                            draw_line(p2.x, p2.y, p3.x, p3.y, 1.0, RED);
-                            draw_line(p3.x, p3.y, p1.x, p1.y, 1.0, RED);
-                        }
-                    }
-                }
-
-                draw_rectangle(10.0, 10.0, 300.0, 100.0, Color::new(0.0, 0.0, 0.0, 0.5));
-                draw_text(&format!("State: {:?}", res.player.state), 20.0, 35.0, 25.0, WHITE);
-                draw_text("[H] Hello  [Space] Random", 20.0, 85.0, 20.0, LIGHTGRAY);
-
-                if is_key_pressed(KeyCode::H) {
-                    res.player.transition_to("talk_hello_world".to_string());
-                }
-                if is_key_pressed(KeyCode::Space) {
-                    let clips: Vec<String> = res.player.data.clips.keys().cloned().collect();
-                    if !clips.is_empty() {
-                        let idx = macroquad::rand::gen_range(0, clips.len());
-                        res.player.transition_to(clips[idx].clone());
-                    }
                 }
             }
         }
