@@ -93,7 +93,7 @@ async fn main() {
                         .map_err(|e| format!("face.jpg load_file failed: {:?}", e))?;
                     println!("LOADED_IMAGE_BYTES: {}", image_bytes.len());
                     
-                    let texture = Texture2D::from_file_with_format(&image_bytes, Some(ImageFormat::Jpg));
+                    let texture = Texture2D::from_file_with_format(&image_bytes, Some(ImageFormat::Jpeg));
                     texture.set_filter(FilterMode::Linear);
 
                     let pipeline = load_material(
