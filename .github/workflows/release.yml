@@ -4,8 +4,7 @@ on:
   push:
     branches:
       - master
-    tags:
-      - 'v*'
+      - main
 
 permissions:
   contents: write
@@ -22,6 +21,16 @@ jobs:
         with:
           targets: wasm32-unknown-unknown, aarch64-unknown-linux-gnu
 
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Asset Cache
+        id: cache-assets
+        uses: actions/cache@v3
+        with:
+          path: assets/
+          key: ${{ runner.os }}-assets-v1
+
       - name: Install System Dependencies
         run: |
           sudo apt-get update
@@ -30,19 +39,13 @@ jobs:
       - name: Prepare Assets & Generate Data
         run: |
           mkdir -p assets
-          # Download a more reliable MediaPipe model (this one is ~2.7MB)
-          curl -L -o assets/face_mesh.onnx "https://github.com/PINTO0309/PINTO_model_zoo/raw/main/032_FaceMesh/01_float32/model_float32.onnx"
-          # Download a real face image from a stable CDN (direct link to a JPG)
-          curl -L -o assets/face.jpg "https://upload.wikimedia.org/wikipedia/commons/8/8d/Chisato_Minami_Face.jpg"
-          
-          # Validation: ensure model is > 1MB and image is > 1KB
-          if [ $(stat -c%s "assets/face_mesh.onnx") -lt 1000000 ]; then
-            echo "Warning: face_mesh.onnx download might have failed or is incorrect size."
+          if [ "${{ steps.cache-assets.outputs.cache-hit }}" != "true" ]; then
+            echo "Cache miss: downloading assets..."
+            curl -L -o assets/face_mesh.onnx "https://github.com/PINTO0309/PINTO_model_zoo/raw/main/032_FaceMesh/01_float32/model_float32.onnx"
+            curl -L -o assets/face.jpg "https://upload.wikimedia.org/wikipedia/commons/8/8d/Chisato_Minami_Face.jpg"
+          else
+            echo "Cache hit: skipping download."
           fi
-          if [ ! -f assets/face.jpg ] || [ $(stat -c%s "assets/face.jpg") -lt 1000 ]; then
-            echo "Warning: face.jpg download failed. Generating dummy in next step."
-          fi
-          
           cargo run --release -p generator
 
       - name: Run Workspace Tests
@@ -116,29 +119,24 @@ jobs:
           EOF
           zip -r avatar-player-web.zip web-dist
 
-      - name: Upload Artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: platform-bundles
-          path: |
-            avatar-player-linux-x86_64.AppImage
-            avatar-player-rpi-aarch64.tar.gz
-            avatar-player-web.zip
+      - name: Generate Version Tag
+        id: version
+        run: echo "tag=v0.3.${{ github.run_number }}" >> $GITHUB_OUTPUT
 
       - name: Deploy to GitHub Pages
-        if: github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v')
         uses: JamesIves/github-pages-deploy-action@v4
         with:
           folder: web-dist
           branch: gh-pages
 
       - name: Create GitHub Release
-        if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ steps.version.outputs.tag }}
           files: |
             avatar-player-linux-x86_64.AppImage
             avatar-player-rpi-aarch64.tar.gz
             avatar-player-web.zip
           draft: false
           prerelease: false
+          generate_release_notes: true

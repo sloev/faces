@@ -49,6 +49,21 @@ This repository is configured with a zero-setup GitHub Actions workflow (`.githu
 
 ---
 
+## ✅ Features & Verification
+
+Every core engine feature is verified by automated unit tests in the CI/CD pipeline.
+
+| Feature | Description | Verification Logic (Test) |
+| :--- | :--- | :--- |
+| **ML Postprocessing** | De-interleaving 1404 floats into 468 vertices. | [`generator/src/main.rs#test_postprocessing_logic`](crates/generator/src/main.rs) |
+| **Delaunay Triangulation** | Robust generation of non-overlapping face meshes. | [`generator/src/main.rs#test_triangulation_validity`](crates/generator/src/main.rs) |
+| **Viseme Synthesis** | Character-to-vertex-offset mapping for speech. | [`generator/src/main.rs#test_viseme_synthesis`](crates/generator/src/main.rs) |
+| **FSM Animation State** | Seamless transitions between Idle and Talking. | [`player/src/animation.rs#test_fsm_transitions`](crates/player/src/animation.rs) |
+| **Vertex Interpolation** | Linear LERP math for smooth 60fps movement. | [`player/src/animation.rs#test_lerp_logic`](crates/player/src/animation.rs) |
+| **Data Contract** | JSON serialization of the animation timeline. | [`shared/src/lib.rs#test_serialization`](crates/shared/src/lib.rs) |
+
+---
+
 ## 🎮 Controls (Player)
 
 *   **`H`**: Trigger "Hello World" talking sequence.
