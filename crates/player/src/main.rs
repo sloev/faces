@@ -97,7 +97,7 @@ async fn main() {
                             let v = vertices[0];
                             let sx = v.x * 600.0 + 100.0;
                             let sy = v.y * 600.0 + 100.0;
-                            macroquad::logging::info!(&format!("DEBUG_COORDS: Raw({:.2}, {:.2}) -> Screen({:.2}, {:.2})", v.x, v.y, sx, sy));
+                            macroquad::logging::info!("{}", &format!("DEBUG_COORDS: Raw({:.2}, {:.2}) -> Screen({:.2}, {:.2})", v.x, v.y, sx, sy));
                             LOGGED_COORDS = true;
                         }
                     }
