@@ -16,10 +16,14 @@ const server = exec('python3 -m http.server 8080', { cwd: path.join(__dirname, '
     const page = await browser.newPage();
 
     let runtimeError = false;
+    let successSignal = false;
 
     page.on('console', msg => {
         const text = msg.text();
         console.log(`[BROWSER CONSOLE] ${msg.type().toUpperCase()}: ${text}`);
+        if (text.includes("RENDER_LOOP_STARTED")) {
+            successSignal = true;
+        }
         if (text.toLowerCase().includes("panic") || text.toLowerCase().includes("runtimeerror")) {
             runtimeError = true;
         }
@@ -42,8 +46,9 @@ const server = exec('python3 -m http.server 8080', { cwd: path.join(__dirname, '
     await browser.close();
     server.kill();
 
-    if (runtimeError) {
-        console.error("--- ❌ WEB SMOKE TEST FAILED ---");
+    if (runtimeError || !successSignal) {
+        if (!successSignal) console.error("--- ❌ WEB SMOKE TEST FAILED: Never reached RENDER_LOOP_STARTED ---");
+        else console.error("--- ❌ WEB SMOKE TEST FAILED ---");
         process.exit(1);
     } else {
         console.log("--- ✅ WEB SMOKE TEST PASSED ---");
