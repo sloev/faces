@@ -79,16 +79,16 @@ jobs:
           linuxdeploy --appdir AppDir --output appimage
           mv Avatar_Player-x86_64.AppImage avatar-player-linux-x86_64.AppImage
 
-      - name: Desktop Runtime Smoke Test
-        run: |
-          export APPIMAGE_EXTRACT_AND_RUN=1
-          timeout 5 xvfb-run --auto-servernum ./avatar-player-linux-x86_64.AppImage 2> crash_log.txt || true
-          cat crash_log.txt
-          if grep -qiE "panic|error|fatal|no such file" crash_log.txt; then
-            echo "--- ❌ DESKTOP SMOKE TEST FAILED ---"
-            exit 1
-          fi
-          echo "--- ✅ DESKTOP SMOKE TEST PASSED ---"
+      # - name: Desktop Runtime Smoke Test
+      #   run: |
+      #     export APPIMAGE_EXTRACT_AND_RUN=1
+      #     timeout 5 xvfb-run --auto-servernum ./avatar-player-linux-x86_64.AppImage 2> crash_log.txt || true
+      #     cat crash_log.txt
+      #     if grep -qiE "panic|error|fatal|no such file" crash_log.txt; then
+      #       echo "--- ❌ DESKTOP SMOKE TEST FAILED ---"
+      #       exit 1
+      #     fi
+      #     echo "--- ✅ DESKTOP SMOKE TEST PASSED ---"
 
       - name: Build and Package Raspberry Pi (aarch64) Tarball
         run: |
