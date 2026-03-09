@@ -25,11 +25,16 @@ const server = exec('python3 -m http.server 8080', { cwd: path.join(__dirname, '
         
         if (text.includes("RENDER_LOOP_STARTED")) successSignal = true;
         
-        // FAIL ON ANY ERROR OR PANIC
-        if (type === "ERROR" || text.toLowerCase().includes("panic") || text.toLowerCase().includes("unreachable")) {
+        // FAIL ON ANY ERROR OR PANIC (Ignoring favicon.ico)
+        if (type === "ERROR" && !text.includes("favicon.ico")) {
             console.error(`❌ CRITICAL ERROR DETECTED: ${text}`);
             runtimeError = true;
         }
+        if (text.toLowerCase().includes("panic") || text.toLowerCase().includes("unreachable")) {
+            console.error(`❌ CRITICAL PANIC DETECTED: ${text}`);
+            runtimeError = true;
+        }
+
     });
 
     page.on('pageerror', err => {

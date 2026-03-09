@@ -72,27 +72,27 @@ async fn main() {
 
         match state {
             AppState::Waiting => {
-                if frame_count > 60 {
+                if frame_count > 120 { // 2 second delay
                     state = AppState::Loading;
                 }
             }
             AppState::Loading => {
                 let res = async {
-                    let json_data = if let Ok(d) = load_string("assets/timeline.json").await {
+                    // Try root first for Wasm, then assets/
+                    let json_data = if let Ok(d) = load_string("timeline.json").await {
                         d
                     } else {
-                        load_string("timeline.json").await
-                            .map_err(|_| "timeline.json missing")?
+                        load_string("assets/timeline.json").await
+                            .map_err(|e| format!("timeline.json missing: {:?}", e))?
                     };
                     
                     let data = AvatarData::from_json(&json_data).map_err(|e| format!("JSON error: {:?}", e))?;
                     
-                    let texture = if let Ok(t) = load_texture("assets/face.jpg").await {
-                        t
-                    } else if let Ok(t) = load_texture("face.jpg").await {
+                    let texture = if let Ok(t) = load_texture("face.jpg").await {
                         t
                     } else {
-                        return Err("face.jpg missing".to_string());
+                        load_texture("assets/face.jpg").await
+                            .map_err(|e| format!("face.jpg missing: {:?}", e))?
                     };
                     
                     texture.set_filter(FilterMode::Linear);
@@ -120,8 +120,10 @@ async fn main() {
                     }
                 }
             }
-            AppState::Error(_) => {
+            AppState::Error(ref e) => {
                 clear_background(RED);
+                #[cfg(not(target_family = "wasm"))]
+                draw_text(&format!("Error: {}", e), 20.0, 20.0, 20.0, WHITE);
             }
             AppState::Running(ref mut res) => {
                 clear_background(Color::new(0.05, 0.05, 0.07, 1.0));
@@ -150,17 +152,6 @@ async fn main() {
                         texture: Some(res.texture.clone()),
                     });
                     gl_use_default_material();
-                }
-
-                if is_key_pressed(KeyCode::H) {
-                    res.player.transition_to("talk_hello_world".to_string());
-                }
-                if is_key_pressed(KeyCode::Space) {
-                    let clips: Vec<String> = res.player.data.clips.keys().cloned().collect();
-                    if !clips.is_empty() {
-                        let idx = macroquad::rand::gen_range(0, clips.len());
-                        res.player.transition_to(clips[idx].clone());
-                    }
                 }
             }
         }
