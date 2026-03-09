@@ -2,12 +2,11 @@ const puppeteer = require('puppeteer');
 const { exec } = require('child_process');
 const path = require('path');
 
-// Use python3 to serve for absolute simplicity
 const server = exec('python3 -m http.server 8080', { cwd: path.join(__dirname, 'web-dist') });
 
 (async () => {
-    console.log("--- 🌐 STARTING WEB VISUAL SMOKE TEST ---");
-    await new Promise(r => setTimeout(r, 2000)); // Wait for server
+    console.log("--- 🌐 STARTING STRICT WEB SMOKE TEST ---");
+    await new Promise(r => setTimeout(r, 2000));
 
     const browser = await puppeteer.launch({
         headless: "new",
@@ -21,46 +20,44 @@ const server = exec('python3 -m http.server 8080', { cwd: path.join(__dirname, '
 
     page.on('console', msg => {
         const text = msg.text();
-        console.log(`[BROWSER CONSOLE] ${msg.type().toUpperCase()}: ${text}`);
-        if (text.includes("RENDER_LOOP_STARTED")) {
-            successSignal = true;
-        }
-        // Only fail on critical panics
-        if (text.toLowerCase().includes("panic") || text.toLowerCase().includes("unreachable")) {
+        const type = msg.type().toUpperCase();
+        console.log(`[BROWSER CONSOLE] ${type}: ${text}`);
+        
+        if (text.includes("RENDER_LOOP_STARTED")) successSignal = true;
+        
+        // FAIL ON ANY ERROR OR PANIC
+        if (type === "ERROR" || text.toLowerCase().includes("panic") || text.toLowerCase().includes("unreachable")) {
+            console.error(`❌ CRITICAL ERROR DETECTED: ${text}`);
             runtimeError = true;
         }
     });
 
     page.on('pageerror', err => {
-        console.error(`[BROWSER ERROR] ${err.toString()}`);
-        // Only fail on critical runtime errors
-        if (err.toString().toLowerCase().includes("panic") || err.toString().toLowerCase().includes("unreachable")) {
-            runtimeError = true;
-        }
+        console.error(`[BROWSER PAGE ERROR] ${err.toString()}`);
+        runtimeError = true;
     });
 
     try {
-        await page.goto('http://localhost:8080', { waitUntil: 'networkidle0', timeout: 60000 });
-        console.log("Page loaded, waiting 15 seconds for stabilization...");
-        await new Promise(r => setTimeout(r, 15000));
+        await page.goto('http://localhost:8080', { waitUntil: 'networkidle0', timeout: 30000 });
+        console.log("Page loaded, waiting 10 seconds for stabilization...");
+        await new Promise(r => setTimeout(r, 10000));
         
         console.log("📸 CAPTURING SCREENSHOT...");
         await page.screenshot({ path: 'ci_screenshot.png' });
         
     } catch (e) {
         console.error("Navigation failed:", e);
+        runtimeError = true;
     }
 
     await browser.close();
     server.kill();
 
-    // SUCCESS CONDITION: We reached the end without a panic.
-    // If the visual check script passes later, we are good.
-    if (runtimeError) {
-        console.error("--- ❌ WEB SMOKE TEST FAILED: CRITICAL PANIC DETECTED ---");
+    if (runtimeError || !successSignal) {
+        console.error("--- ❌ WEB SMOKE TEST FAILED ---");
         process.exit(1);
     } else {
-        console.log("--- ✅ WEB SMOKE TEST PASSED (NO PANIC) ---");
+        console.log("--- ✅ WEB SMOKE TEST PASSED ---");
         process.exit(0);
     }
 })();

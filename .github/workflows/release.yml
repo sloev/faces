@@ -94,8 +94,9 @@ jobs:
           cp target/wasm32-unknown-unknown/release/player.wasm web-dist/
           cp assets/timeline.json web-dist/assets/
           cp assets/face.jpg web-dist/assets/
-          cp assets/timeline.json web-dist/
-          cp assets/face.jpg web-dist/
+          
+          # CRITICAL FIX: Download and bundle the matching JS glue locally
+          curl -L -o web-dist/mq_js_bundle.js https://not-fl3.github.io/miniquad-samples/mq_js_bundle.js
           
           cat <<EOF > web-dist/index.html
           <!DOCTYPE html>
@@ -106,14 +107,14 @@ jobs:
               <style>
                   body { margin: 0; background: #0f0f12; color: #e0e0e0; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; height: 100vh; overflow: hidden; }
                   #container { width: 100%; flex-grow: 1; display: flex; justify-content: center; align-items: center; }
-                  canvas { max-width: 100%; max-height: 100%; border-radius: 8px; }
+                  canvas { max-width: 100%; max-height: 100%; border-radius: 8px; outline: none; }
                   #info { padding: 20px; text-align: center; width: 100%; background: #141419; border-top: 1px solid #333; }
               </style>
           </head>
           <body>
               <div id="container"><canvas id="glcanvas"></canvas></div>
               <div id="info"><h1>Faces Engine</h1><p>Press <strong>H</strong> for Hello &bull; <strong>Space</strong> for Random</p></div>
-              <script src="https://not-fl3.github.io/miniquad-samples/mq_js_bundle.js"></script>
+              <script src="mq_js_bundle.js"></script>
               <script>load("player.wasm");</script>
           </body>
           </html>
@@ -124,7 +125,6 @@ jobs:
         run: |
           npm install puppeteer node-static
           node smoke_test.js
-        continue-on-error: true
 
       - name: Upload Visual Debug Artifact
         if: always()
@@ -135,7 +135,7 @@ jobs:
 
       - name: Generate Version Tag
         id: version
-        run: echo "tag=v0.9.${{ github.run_number }}" >> $GITHUB_OUTPUT
+        run: echo "tag=v1.0.${{ github.run_number }}" >> $GITHUB_OUTPUT
 
       - name: Deploy to GitHub Pages
         uses: JamesIves/github-pages-deploy-action@v4
