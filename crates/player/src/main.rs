@@ -82,7 +82,7 @@ async fn main() {
                         d
                     } else {
                         load_string("timeline.json").await
-                            .map_err(|_| "timeline.json missing".to_string())?
+                            .map_err(|_| "timeline.json missing")?
                     };
                     
                     let data = AvatarData::from_json(&json_data).map_err(|e| format!("JSON error: {:?}", e))?;
@@ -120,16 +120,12 @@ async fn main() {
                     }
                 }
             }
-            AppState::Error(ref e) => {
+            AppState::Error(_) => {
                 clear_background(RED);
-                #[cfg(not(target_family = "wasm"))]
-                draw_text(&format!("Error: {}", e), 20.0, 20.0, 20.0, WHITE);
             }
             AppState::Running(ref mut res) => {
                 clear_background(Color::new(0.05, 0.05, 0.07, 1.0));
-                
-                let dt = get_frame_time();
-                res.player.update(dt);
+                res.player.update(get_frame_time());
 
                 let vertices = res.player.get_current_pose();
                 if !vertices.is_empty() {
@@ -137,9 +133,7 @@ async fn main() {
                         .iter()
                         .enumerate()
                         .map(|(i, v)| {
-                            let uv = res.player.data.base_uvs.get(i).cloned()
-                                .unwrap_or(shared::Vertex { x: 0.5, y: 0.5 });
-                            
+                            let uv = res.player.data.base_uvs.get(i).cloned().unwrap_or(shared::Vertex { x: 0.0, y: 0.0 });
                             macroquad::models::Vertex {
                                 position: vec3(v.x * 600.0 + 100.0, v.y * 600.0 + 100.0, 0.0),
                                 uv: vec2(uv.x, uv.y),
@@ -157,10 +151,6 @@ async fn main() {
                     });
                     gl_use_default_material();
                 }
-
-                draw_rectangle(10.0, 10.0, 300.0, 100.0, Color::new(0.0, 0.0, 0.0, 0.5));
-                draw_text(&format!("State: {:?}", res.player.state), 20.0, 35.0, 25.0, WHITE);
-                draw_text("[H] Hello  [Space] Random", 20.0, 85.0, 20.0, LIGHTGRAY);
 
                 if is_key_pressed(KeyCode::H) {
                     res.player.transition_to("talk_hello_world".to_string());
