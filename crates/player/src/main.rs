@@ -137,12 +137,12 @@ async fn main() {
                         .iter()
                         .enumerate()
                         .map(|(i, v)| {
-                            let base_uv = res.player.data.base_uvs.get(i).cloned()
+                            let uv = res.player.data.base_uvs.get(i).cloned()
                                 .unwrap_or(shared::Vertex { x: 0.5, y: 0.5 });
                             
                             macroquad::models::Vertex {
                                 position: vec3(v.x * 600.0 + 100.0, v.y * 600.0 + 100.0, 0.0),
-                                uv: vec2(base_uv.x, base_uv.y),
+                                uv: vec2(uv.x, uv.y),
                                 color: WHITE.into(),
                                 normal: vec4(0.0, 0.0, 1.0, 0.0),
                             }

@@ -108,9 +108,6 @@ jobs:
           cp assets/timeline.json web-dist/
           cp assets/face.jpg web-dist/
           
-          # Use gl.js for Macroquad 0.3.x stability
-          curl -L -o web-dist/gl.js https://not-fl3.github.io/miniquad-samples/gl.js
-          
           cat <<EOF > web-dist/index.html
           <!DOCTYPE html>
           <html>
@@ -127,7 +124,7 @@ jobs:
           <body>
               <div id="container"><canvas id="glcanvas"></canvas></div>
               <div id="info"><h1>Faces Engine</h1><p>Press <strong>H</strong> for Hello &bull; <strong>Space</strong> for Random</p></div>
-              <script src="gl.js"></script>
+              <script src="https://not-fl3.github.io/miniquad-samples/mq_js_bundle.js"></script>
               <script>load("player.wasm");</script>
           </body>
           </html>
@@ -148,7 +145,7 @@ jobs:
 
       - name: Generate Version Tag
         id: version
-        run: echo "tag=v0.7.${{ github.run_number }}" >> $GITHUB_OUTPUT
+        run: echo "tag=v0.8.${{ github.run_number }}" >> $GITHUB_OUTPUT
 
       - name: Deploy to GitHub Pages
         uses: JamesIves/github-pages-deploy-action@v4
