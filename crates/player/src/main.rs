@@ -63,11 +63,8 @@ async fn main() {
                         t
                     } else if let Ok(t) = load_texture("face.jpg").await {
                         t
-                    } else if let Ok(t) = load_texture("assets/face.png").await {
-                        t
                     } else {
-                        load_texture("face.png").await
-                            .map_err(|_| "Face texture missing (checked jpg/png in assets and root)".to_string())?
+                        return Err("face.jpg missing".to_string());
                     };
                     
                     texture.set_filter(FilterMode::Linear);
@@ -81,17 +78,16 @@ async fn main() {
                 match res {
                     Ok(r) => {
                         state = AppState::Running(r);
-                        macroquad::logging::info!("RENDER_LOOP_STARTED");
+                        println!("RENDER_LOOP_STARTED");
                     }
                     Err(e) => {
-                        macroquad::logging::error!("{}", &e);
+                        eprintln!("[ERROR] {}", e);
                         state = AppState::Error(e);
                     }
                 }
             }
             AppState::Error(ref e) => {
                 clear_background(RED);
-                #[cfg(not(target_family = "wasm"))]
                 draw_text(&format!("Error: {}", e), 20.0, 20.0, 20.0, WHITE);
             }
             AppState::Running(ref mut res) => {
@@ -102,21 +98,17 @@ async fn main() {
 
                 let vertices = res.player.get_current_pose();
                 if !vertices.is_empty() {
-                    // APPLY PROVEN UV/VERTEX MAPPING
                     let mq_vertices: Vec<Vertex> = vertices
                         .iter()
                         .enumerate()
                         .map(|(i, v)| {
-                            // UVs come from the base (neutral) pose
                             let base_uv = res.player.data.base_uvs.get(i).cloned()
                                 .unwrap_or(shared::Vertex { x: 0.5, y: 0.5 });
                             
                             Vertex {
-                                // Scale position to 600x600 in the center of 800x800
                                 position: vec3(v.x * 600.0 + 100.0, v.y * 600.0 + 100.0, 0.0),
                                 uv: vec2(base_uv.x, base_uv.y),
-                                color: WHITE.into(),
-                                normal: vec4(0.0, 0.0, 1.0, 0.0),
+                                color: WHITE,
                             }
                         })
                         .collect();
@@ -128,7 +120,6 @@ async fn main() {
                     });
                 }
 
-                // UI Overlay
                 draw_rectangle(10.0, 10.0, 300.0, 100.0, Color::new(0.0, 0.0, 0.0, 0.5));
                 draw_text(&format!("State: {:?}", res.player.state), 20.0, 35.0, 25.0, WHITE);
                 draw_text("[H] Hello  [Space] Random", 20.0, 85.0, 20.0, LIGHTGRAY);
