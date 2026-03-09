@@ -11,9 +11,37 @@ fn window_conf() -> Conf {
     }
 }
 
+const FRAGMENT_SHADER: &str = r#"#version 100
+    precision lowp float;
+    varying vec2 uv;
+    varying vec4 color;
+    uniform sampler2D Texture;
+    void main() {
+        vec4 res = texture2D(Texture, uv) * color;
+        res.rgb *= (1.0 - (uv.y * 0.2));
+        gl_FragColor = res;
+    }
+"#;
+
+const VERTEX_SHADER: &str = r#"#version 100
+    attribute vec3 position;
+    attribute vec2 texcoord;
+    attribute vec4 color0;
+    varying vec2 uv;
+    varying vec4 color;
+    uniform mat4 Model;
+    uniform mat4 Projection;
+    void main() {
+        gl_Position = Projection * Model * vec4(position, 1.0);
+        uv = texcoord;
+        color = color0;
+    }
+"#;
+
 struct Resources {
     player: AnimationPlayer,
     texture: Texture2D,
+    pipeline: Material,
 }
 
 enum AppState {
@@ -68,26 +96,33 @@ async fn main() {
                     };
                     
                     texture.set_filter(FilterMode::Linear);
+
+                    let pipeline = load_material(
+                        ShaderSource::Glsl { vertex: VERTEX_SHADER, fragment: FRAGMENT_SHADER },
+                        MaterialParams { ..Default::default() }
+                    ).map_err(|e| format!("Shader error: {:?}", e))?;
                     
                     Ok(Resources {
                         player: AnimationPlayer::new(data),
                         texture,
+                        pipeline,
                     })
                 }.await;
 
                 match res {
                     Ok(r) => {
                         state = AppState::Running(r);
-                        println!("RENDER_LOOP_STARTED");
+                        macroquad::logging::info!("RENDER_LOOP_STARTED");
                     }
                     Err(e) => {
-                        eprintln!("[ERROR] {}", e);
+                        macroquad::logging::error!("{}", &e);
                         state = AppState::Error(e);
                     }
                 }
             }
             AppState::Error(ref e) => {
                 clear_background(RED);
+                #[cfg(not(target_family = "wasm"))]
                 draw_text(&format!("Error: {}", e), 20.0, 20.0, 20.0, WHITE);
             }
             AppState::Running(ref mut res) => {
@@ -108,16 +143,19 @@ async fn main() {
                             macroquad::models::Vertex {
                                 position: vec3(v.x * 600.0 + 100.0, v.y * 600.0 + 100.0, 0.0),
                                 uv: vec2(base_uv.x, base_uv.y),
-                                color: WHITE,
+                                color: WHITE.into(),
+                                normal: vec4(0.0, 0.0, 1.0, 0.0),
                             }
                         })
                         .collect();
 
+                    gl_use_material(&res.pipeline);
                     draw_mesh(&Mesh {
                         vertices: mq_vertices,
                         indices: res.player.data.mesh_indices.iter().map(|&i| i as u16).collect(),
                         texture: Some(res.texture.clone()),
                     });
+                    gl_use_default_material();
                 }
 
                 draw_rectangle(10.0, 10.0, 300.0, 100.0, Color::new(0.0, 0.0, 0.0, 0.5));
