@@ -98,17 +98,17 @@ async fn main() {
 
                 let vertices = res.player.get_current_pose();
                 if !vertices.is_empty() {
-                    let mq_vertices: Vec<Vertex> = vertices
+                    let mq_vertices: Vec<macroquad::models::Vertex> = vertices
                         .iter()
                         .enumerate()
                         .map(|(i, v)| {
                             let base_uv = res.player.data.base_uvs.get(i).cloned()
                                 .unwrap_or(shared::Vertex { x: 0.5, y: 0.5 });
                             
-                            Vertex {
-                                pos: vec3(v.x * 600.0 + 100.0, v.y * 600.0 + 100.0, 0.0),
+                            macroquad::models::Vertex {
+                                pos: vec3(v.x * 600.0 + 100.0, v.y * 600.0 + 100.0, 0.0).into(),
                                 uv: [base_uv.x, base_uv.y],
-                                color: WHITE,
+                                color: WHITE.into(),
                             }
                         })
                         .collect();
