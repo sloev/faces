@@ -106,8 +106,8 @@ async fn main() {
                                 .unwrap_or(shared::Vertex { x: 0.5, y: 0.5 });
                             
                             Vertex {
-                                position: vec3(v.x * 600.0 + 100.0, v.y * 600.0 + 100.0, 0.0),
-                                uv: vec2(base_uv.x, base_uv.y),
+                                pos: vec3(v.x * 600.0 + 100.0, v.y * 600.0 + 100.0, 0.0),
+                                uv: [base_uv.x, base_uv.y],
                                 color: WHITE,
                             }
                         })
